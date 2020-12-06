@@ -214,7 +214,7 @@ function rewriteCallExpression(
     ) {
       args.push(arg);
     } else {
-			args.push(rewriteAndConcat(arg, preamble));
+      args.push(rewriteAndConcat(arg, preamble));
     }
   }
 
@@ -257,7 +257,9 @@ function rewriteObjectExpression(
   expression: types.ObjectExpression
 ): Preambleable<types.ObjectExpression> {
   let preamble = [];
-  let properties = [];
+  let properties: Array<
+    types.ObjectMethod | types.ObjectProperty | types.SpreadElement
+  > = [];
   for (let property of expression.properties) {
     if (property.type === "SpreadElement") {
       properties.push(property);
@@ -280,13 +282,12 @@ function rewriteObjectExpression(
       ) {
       } else {
         // @ts-ignore
-        let rewrittenValue = rewriteExpression(value);
-        preamble = preamble.concat(rewrittenValue.preamble);
-        value = rewrittenValue.value;
+        value = rewriteAndConcat(value, preamble);
       }
 
       properties.push({
         type: "ObjectProperty",
+        ...property,
         key,
         value,
       });
@@ -306,16 +307,15 @@ function rewriteObjectExpression(
 function rewriteFunctionExpression(
   expression: types.FunctionExpression
 ): Preambleable<types.FunctionExpression> {
-  let newBody = wrapWithBlock({
-    preamble: rewriteScopedStatementBlock(expression.body.body),
-    value: undefined,
-  });
   return {
     preamble: [],
     // just add the new body
     value: {
       ...expression,
-      body: newBody,
+      body: wrapWithBlock({
+        preamble: rewriteScopedStatementBlock(expression.body.body),
+        value: undefined,
+      }),
     },
   };
 }
@@ -329,9 +329,7 @@ function rewriteArrayExpression(
     if (element.type === "SpreadElement") {
       newElements.push(element);
     } else {
-      let rewritten = rewriteExpression(element);
-      preamble = preamble.concat(rewritten.preamble);
-      newElements.push(rewritten.value);
+      newElements.push(rewriteAndConcat(element, preamble));
     }
   }
 
@@ -1071,7 +1069,7 @@ function rewriteVariableDeclaration(
   for (let declarator of statement.declarations) {
     let init = declarator.init;
     if (init) {
-			init = rewriteAndConcat(init, declarations);
+      init = rewriteAndConcat(init, declarations);
     }
 
     declarations.push({
@@ -1126,12 +1124,14 @@ export default function rewriteProgram(program: types.Program): types.Program {
 
 import * as fs from "fs";
 import { createUndefined, createNull } from "./create";
-import { isCallSignatureDeclaration } from "typescript";
-import { wrap } from "module";
 
 let inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
 
 let { program } = parser.parse(inputCode);
+
+import * as uses from "./uses";
+
+console.log(uses.getInitialValuesStatementsUse(program.body));
 
 let refactored = rewriteProgram(program);
 

@@ -188,15 +188,10 @@ function rewriteObjectExpression(expression) {
             }
             else {
                 // @ts-ignore
-                var rewrittenValue = rewriteExpression(value);
-                preamble = preamble.concat(rewrittenValue.preamble);
-                value = rewrittenValue.value;
+                value = rewriteAndConcat(value, preamble);
             }
-            properties.push({
-                type: "ObjectProperty",
-                key: key,
-                value: value
-            });
+            properties.push(__assign(__assign({ type: "ObjectProperty" }, property), { key: key,
+                value: value }));
         }
     }
     return {
@@ -205,14 +200,13 @@ function rewriteObjectExpression(expression) {
     };
 }
 function rewriteFunctionExpression(expression) {
-    var newBody = wrapWithBlock({
-        preamble: rewriteScopedStatementBlock(expression.body.body),
-        value: undefined
-    });
     return {
         preamble: [],
         // just add the new body
-        value: __assign(__assign({}, expression), { body: newBody })
+        value: __assign(__assign({}, expression), { body: wrapWithBlock({
+                preamble: rewriteScopedStatementBlock(expression.body.body),
+                value: undefined
+            }) })
     };
 }
 function rewriteArrayExpression(expression) {
@@ -224,9 +218,7 @@ function rewriteArrayExpression(expression) {
             newElements.push(element);
         }
         else {
-            var rewritten = rewriteExpression(element);
-            preamble = preamble.concat(rewritten.preamble);
-            newElements.push(rewritten.value);
+            newElements.push(rewriteAndConcat(element, preamble));
         }
     }
     return {
@@ -719,6 +711,8 @@ var fs = require("fs");
 var create_1 = require("./create");
 var inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
 var program = parser.parse(inputCode).program;
+var uses = require("./uses");
+console.log(uses.getInitialValuesStatementsUse(program.body));
 var refactored = rewriteProgram(program);
 var code = generator_1["default"](refactored).code;
 fs.writeFileSync("out.js", code, { encoding: "utf8" });
