@@ -3,17 +3,10 @@ import generate from "@babel/generator";
 import * as types from "@babel/types";
 import BASE_NODE from "./base_node";
 
-interface ExpressionWithPreamble {
+interface Preambleable<T> {
   preamble: types.Statement[];
-  expression: types.Expression;
+  value: T;
 }
-
-interface StatementWithPreamble {
-  preamble: types.Statement[];
-  statement: types.Statement;
-}
-
-type WithPreamble = StatementWithPreamble | ExpressionWithPreamble;
 
 function fromVarToLet(
   statement: types.VariableDeclaration
@@ -103,7 +96,7 @@ function negateExpression(expression: types.Expression): types.Expression {
 
 function rewriteConditionalExpressionStatement(
   expression: types.ConditionalExpression
-): StatementWithPreamble {
+): Preambleable<types.IfStatement> {
   return createIfStatement(
     expression.test,
     toExpressionStatement(expression.consequent),
@@ -119,7 +112,7 @@ function rewriteAndReduce(
   for (let expression of expressions) {
     let rewritten = rewriteExpression(expression);
     preamble = preamble.concat(rewritten.preamble);
-    members.push(rewritten.expression);
+    members.push(rewritten.value);
   }
 
   return [preamble, members];
@@ -161,43 +154,32 @@ function createBinaryExpression(
   };
 }
 
-function addPreambleToExpression(
-  expression: types.Expression
-): ExpressionWithPreamble {
+function addPreamble<T>(value: T): Preambleable<T> {
   return {
     preamble: [],
-    expression,
-  };
-}
-
-function addPreambleToStatement(
-  statement: types.Statement
-): StatementWithPreamble {
-  return {
-    preamble: [],
-    statement,
+    value,
   };
 }
 
 function rewriteNegatedUnaryExpressionArgument(
   argument: types.Expression
-): ExpressionWithPreamble {
+): Preambleable<types.Expression> {
   if (argument.type === "NumericLiteral") {
     // Convert !0 to true, and !1 to false.
-    return addPreambleToExpression(rewriteNegatedUnaryNumericLiteral(argument));
+    return addPreamble(rewriteNegatedUnaryNumericLiteral(argument));
   } else if (argument.type === "CallExpression") {
     // Remove "!" before (function(){})()
     return rewriteExpression(argument);
   } else {
-    let { preamble, expression } = rewriteExpression(argument);
+    let { preamble, value } = rewriteExpression(argument);
     return {
       preamble,
-      expression: {
+      value: {
         ...BASE_NODE,
         type: "UnaryExpression",
         operator: "!",
         prefix: false,
-        argument: expression,
+        argument: value,
       },
     };
   }
@@ -205,23 +187,23 @@ function rewriteNegatedUnaryExpressionArgument(
 
 function rewriteUnaryExpression(
   expression: types.UnaryExpression
-): ExpressionWithPreamble {
+): Preambleable<types.UnaryExpression | types.Expression> {
   if (expression.operator === "!") {
     return rewriteNegatedUnaryExpressionArgument(expression.argument);
   } else if (expression.operator === "void") {
     if (expression.argument.type === "NumericLiteral") {
       if (expression.argument.value === 0) {
-        return addPreambleToExpression(createUndefined());
+        return addPreamble(createUndefined());
       }
     }
   }
 
-  return addPreambleToExpression(expression);
+  return addPreamble(expression);
 }
 
 function rewriteCallExpression(
   expression: types.CallExpression
-): ExpressionWithPreamble {
+): Preambleable<types.CallExpression> {
   let preamble = [];
   let args = [];
   for (let arg of expression.arguments) {
@@ -232,9 +214,7 @@ function rewriteCallExpression(
     ) {
       args.push(arg);
     } else {
-      let rewritten = rewriteExpression(arg);
-      preamble = preamble.concat(rewritten.preamble);
-      args.push(rewritten.expression);
+			args.push(rewriteAndConcat(arg, preamble));
     }
   }
 
@@ -242,12 +222,12 @@ function rewriteCallExpression(
   if (expression.callee.type !== "V8IntrinsicIdentifier") {
     let rewrittenCallee = rewriteExpression(expression.callee);
     preamble = preamble.concat(rewrittenCallee.preamble);
-    calleeExpression = rewrittenCallee.expression;
+    calleeExpression = rewrittenCallee.value;
   }
 
   return {
     preamble,
-    expression: {
+    value: {
       ...BASE_NODE,
       ...expression,
       callee: calleeExpression,
@@ -259,12 +239,12 @@ function rewriteCallExpression(
 
 function rewriteAssignmentExpression(
   expression: types.AssignmentExpression
-): ExpressionWithPreamble {
+): Preambleable<types.AssignmentExpression> {
   let [preamble, [right]] = rewriteAndReduce(expression.right);
 
   return {
     preamble,
-    expression: {
+    value: {
       // Assignment expression
       ...expression,
       // Only rewrite the right side
@@ -275,7 +255,7 @@ function rewriteAssignmentExpression(
 
 function rewriteObjectExpression(
   expression: types.ObjectExpression
-): ExpressionWithPreamble {
+): Preambleable<types.ObjectExpression> {
   let preamble = [];
   let properties = [];
   for (let property of expression.properties) {
@@ -285,7 +265,7 @@ function rewriteObjectExpression(
       properties.push(property);
     } else if (property.type === "ObjectProperty") {
       let rewrittenKey = rewriteExpression(property.key);
-      let key = rewrittenKey.expression;
+      let key = rewrittenKey.value;
       let value = property.value;
       preamble = preamble.concat(rewrittenKey.preamble);
 
@@ -302,7 +282,7 @@ function rewriteObjectExpression(
         // @ts-ignore
         let rewrittenValue = rewriteExpression(value);
         preamble = preamble.concat(rewrittenValue.preamble);
-        value = rewrittenValue.expression;
+        value = rewrittenValue.value;
       }
 
       properties.push({
@@ -315,7 +295,7 @@ function rewriteObjectExpression(
 
   return {
     preamble,
-    expression: {
+    value: {
       ...BASE_NODE,
       type: "ObjectExpression",
       properties,
@@ -325,15 +305,15 @@ function rewriteObjectExpression(
 
 function rewriteFunctionExpression(
   expression: types.FunctionExpression
-): ExpressionWithPreamble {
+): Preambleable<types.FunctionExpression> {
   let newBody = wrapWithBlock({
     preamble: rewriteScopedStatementBlock(expression.body.body),
-    statement: undefined,
+    value: undefined,
   });
   return {
     preamble: [],
     // just add the new body
-    expression: {
+    value: {
       ...expression,
       body: newBody,
     },
@@ -342,7 +322,7 @@ function rewriteFunctionExpression(
 
 function rewriteArrayExpression(
   expression: types.ArrayExpression
-): ExpressionWithPreamble {
+): Preambleable<types.ArrayExpression> {
   let preamble = [];
   let newElements = [];
   for (let element of expression.elements) {
@@ -351,13 +331,13 @@ function rewriteArrayExpression(
     } else {
       let rewritten = rewriteExpression(element);
       preamble = preamble.concat(rewritten.preamble);
-      newElements.push(rewritten.expression);
+      newElements.push(rewritten.value);
     }
   }
 
   return {
     preamble,
-    expression: {
+    value: {
       ...expression,
       elements: newElements,
     },
@@ -366,7 +346,7 @@ function rewriteArrayExpression(
 
 function rewriteConditionalExpression(
   expression: types.ConditionalExpression
-): ExpressionWithPreamble {
+): Preambleable<types.ConditionalExpression> {
   let { test, consequent, alternate } = expression;
 
   let testRewritten = rewriteExpression(test);
@@ -381,12 +361,12 @@ function rewriteConditionalExpression(
 
   return {
     preamble,
-    expression: {
+    value: {
       ...BASE_NODE,
       type: "ConditionalExpression",
-      test: testRewritten.expression,
-      consequent: consequentRewritten.expression,
-      alternate: alternateRewritten.expression,
+      test: testRewritten.value,
+      consequent: consequentRewritten.value,
+      alternate: alternateRewritten.value,
     },
   };
 }
@@ -398,23 +378,23 @@ function rewriteConditionalExpression(
  */
 function rewriteBinaryExpression(
   expression: types.BinaryExpression
-): ExpressionWithPreamble {
+): Preambleable<types.BinaryExpression> {
   let preamble = [];
   let { left, right } = expression;
 
   if (left.type !== "PrivateName") {
     let leftRewritten = rewriteExpression(left);
     preamble = preamble.concat(leftRewritten.preamble);
-    left = leftRewritten.expression;
+    left = leftRewritten.value;
   }
 
   let rightRewritten = rewriteExpression(right);
   preamble = preamble.concat(rightRewritten.preamble);
-  right = rightRewritten.expression;
+  right = rightRewritten.value;
 
   return {
     preamble,
-    expression: {
+    value: {
       ...BASE_NODE,
       type: "BinaryExpression",
       left,
@@ -430,21 +410,21 @@ function rewriteBinaryExpression(
  */
 function rewriteMemberExpression(
   expression: types.MemberExpression
-): ExpressionWithPreamble {
+): Preambleable<types.MemberExpression> {
   let preamble = [];
   let rewrittenObject = rewriteExpression(expression.object);
-  let object = rewrittenObject.expression;
+  let object = rewrittenObject.value;
   preamble = preamble.concat(rewrittenObject.preamble);
   let property = expression.property;
   if (expression.property.type !== "PrivateName") {
     let rewrittenProperty = rewriteExpression(expression.property);
     preamble = preamble.concat(rewrittenProperty.preamble);
-    property = rewrittenProperty.expression;
+    property = rewrittenProperty.value;
   }
 
   return {
     preamble,
-    expression: {
+    value: {
       ...BASE_NODE,
       type: "MemberExpression",
       object,
@@ -461,18 +441,18 @@ function rewriteMemberExpression(
  */
 function rewriteNewExpression(
   expression: types.NewExpression
-): ExpressionWithPreamble {
+): Preambleable<types.NewExpression> {
   let callee = expression.callee;
   let preamble = [];
   if (callee.type !== "V8IntrinsicIdentifier") {
     let rewrittenCallee = rewriteExpression(callee);
     preamble = rewrittenCallee.preamble;
-    callee = rewrittenCallee.expression;
+    callee = rewrittenCallee.value;
   }
 
   return {
     preamble,
-    expression: {
+    value: {
       ...expression,
       callee,
     },
@@ -548,7 +528,7 @@ function rewriteArrowFunctionExpression(
   if (expression.body.type === "BlockStatement") {
     newBody = rewriteBlockStatement(expression.body);
   } else {
-    newBody = rewriteExpression(expression.body).expression;
+    newBody = rewriteExpression(expression.body).value;
   }
 
   return {
@@ -559,14 +539,14 @@ function rewriteArrowFunctionExpression(
 
 function rewriteLogicalExpression(
   expression: types.LogicalExpression
-): ExpressionWithPreamble {
+): Preambleable<types.LogicalExpression> {
   let [preamble, [left, right]] = rewriteAndReduce(
     expression.left,
     expression.right
   );
   return {
     preamble,
-    expression: {
+    value: {
       ...expression,
       left,
       right,
@@ -576,7 +556,7 @@ function rewriteLogicalExpression(
 
 function rewriteExpression(
   expression: types.Expression
-): ExpressionWithPreamble {
+): Preambleable<types.Expression> {
   switch (expression.type) {
     case "ConditionalExpression":
       return rewriteConditionalExpression(expression);
@@ -603,11 +583,9 @@ function rewriteExpression(
     case "LogicalExpression":
       return rewriteLogicalExpression(expression);
     case "ClassExpression":
-      return addPreambleToExpression(rewriteClassExpression(expression));
+      return addPreamble(rewriteClassExpression(expression));
     case "ArrowFunctionExpression":
-      return addPreambleToExpression(
-        rewriteArrowFunctionExpression(expression)
-      );
+      return addPreamble(rewriteArrowFunctionExpression(expression));
     case "Identifier":
     case "StringLiteral":
     case "DecimalLiteral":
@@ -620,17 +598,17 @@ function rewriteExpression(
     case "RegExpLiteral":
     case "UpdateExpression": // i++, i--, --i, ++i
     case "Super":
-      return addPreambleToExpression(expression);
+      return addPreamble(expression);
   }
 
   console.log("Unseen expression type:", expression.type);
 
-  return addPreambleToExpression(expression);
+  return addPreamble(expression);
 }
 
 function rewriteLogicalExpressionAsIfStatement(
   expression: types.LogicalExpression
-): StatementWithPreamble {
+): Preambleable<types.IfStatement> {
   if (expression.operator == "&&") {
     return createIfStatement(
       expression.left,
@@ -657,7 +635,7 @@ function createIfStatement(
   test: types.Expression,
   consequent: types.Statement,
   alternate: types.Statement
-) {
+): Preambleable<types.IfStatement> {
   return rewriteIfStatement({
     ...BASE_NODE,
     type: "IfStatement",
@@ -679,7 +657,7 @@ function toExpressionStatement(
 
 function rewriteSequenceExpression(
   sequence: types.SequenceExpression
-): ExpressionWithPreamble {
+): Preambleable<types.SequenceExpression | types.Expression> {
   let expressions = sequence.expressions;
   if (expressions.length === 1) {
     return rewriteExpression(expressions[0]);
@@ -692,7 +670,7 @@ function rewriteSequenceExpression(
     for (let statement of preambleStatements) {
       let {
         preamble: preamble_,
-        statement: statement_,
+        value: statement_,
       } = rewriteExpressionStatement(statement);
 
       preamble = preamble.concat(preamble_);
@@ -702,43 +680,47 @@ function rewriteSequenceExpression(
     let expression = expressions[expressions.length - 1];
     let rewrittenExpression = rewriteExpression(expression);
     preamble = preamble.concat(rewrittenExpression.preamble);
-    expression = rewrittenExpression.expression;
+    expression = rewrittenExpression.value;
 
     return {
       preamble,
-      expression,
+      value: expression,
     };
   }
 }
 
 function rewriteExpressionStatement(
   statement: types.ExpressionStatement
-): StatementWithPreamble {
+): Preambleable<types.ExpressionStatement | types.IfStatement> {
   let expression = statement.expression;
   switch (expression.type) {
     case "ConditionalExpression":
       return rewriteConditionalExpressionStatement(expression);
-    case "LogicalExpression":
+    case "LogicalExpression": {
       return rewriteLogicalExpressionAsIfStatement(expression);
-    default:
-      let { preamble, expression: expression_ } = rewriteExpression(expression);
+    }
+    default: {
+      let { preamble, value } = rewriteExpression(expression);
       return {
         preamble,
-        statement: toExpressionStatement(expression_),
+        value: toExpressionStatement(value),
       };
+    }
   }
 }
 
-function wrapWithBlock(statement: StatementWithPreamble): types.BlockStatement {
+function wrapWithBlock(
+  statement: Preambleable<types.Statement>
+): types.BlockStatement {
   if (statement.preamble.length > 0) {
     return {
       ...BASE_NODE,
       type: "BlockStatement",
       directives: [],
-      body: [...statement.preamble, statement.statement],
+      body: [...statement.preamble, statement.value],
     };
   } else {
-    if (!statement.statement) {
+    if (!statement.value) {
       return {
         ...BASE_NODE,
         type: "BlockStatement",
@@ -747,54 +729,56 @@ function wrapWithBlock(statement: StatementWithPreamble): types.BlockStatement {
       };
     } else {
       // prevent wrapping BlockStatements in BlockStatements
-      if (statement.statement.type === "BlockStatement") {
-        return statement.statement;
+      if (statement.value.type === "BlockStatement") {
+        return statement.value;
       } else {
         return {
           ...BASE_NODE,
           type: "BlockStatement",
           directives: [],
-          body: [statement.statement],
+          body: [statement.value],
         };
       }
     }
   }
 }
 
+function rewriteAndConcat(expression: types.Expression, preamble = []) {
+  let { preamble: pre, value } = rewriteExpression(expression);
+  preamble.push(...pre);
+  return value;
+}
+
 function rewriteForStatement(
   statement: types.ForStatement
-): StatementWithPreamble {
+): Preambleable<types.ForStatement> {
   let preamble = [];
-  let initExpr = undefined;
-  let testExpr = statement.test;
+  let init = undefined;
+  let test = statement.test;
 
   if (statement.init) {
     if (statement.init.type === "VariableDeclaration") {
       let { preamble } = rewriteVariableDeclaration(statement.init);
       if (preamble.length > 0) {
-        initExpr = preamble[preamble.length - 1];
+        init = preamble[preamble.length - 1];
         preamble = preamble.concat(preamble.slice(0, preamble.length - 1));
       }
     } else {
-      let rewritten = rewriteExpression(statement.init);
-      preamble = preamble.concat(rewritten.preamble);
-      initExpr = rewritten.expression;
+      init = rewriteAndConcat(statement.init, preamble);
     }
   }
 
   if (statement.test) {
-    let rewritten = rewriteExpression(statement.test);
-    preamble = preamble.concat(rewritten.preamble);
-    testExpr = rewritten.expression;
+    test = rewriteAndConcat(statement.test, preamble);
   }
 
   return {
     preamble,
-    statement: {
+    value: {
       ...BASE_NODE,
       type: "ForStatement",
-      init: initExpr,
-      test: testExpr,
+      init,
+      test,
       update: statement.update,
       body: wrapWithBlock(rewriteStatement(statement.body)),
     },
@@ -803,13 +787,11 @@ function rewriteForStatement(
 
 function rewriteIfStatement(
   statement: types.IfStatement
-): StatementWithPreamble {
+): Preambleable<types.IfStatement> {
   let test = statement.test;
   let preamble = [];
 
-  let rewrittenTest = rewriteExpression(test);
-  preamble = preamble.concat(rewrittenTest.preamble);
-  test = rewrittenTest.expression;
+  test = rewriteAndConcat(test, preamble);
 
   let consequent = statement.consequent;
   let alternate = statement.alternate;
@@ -824,7 +806,7 @@ function rewriteIfStatement(
 
   return {
     preamble,
-    statement: {
+    value: {
       ...BASE_NODE,
       type: "IfStatement",
       test,
@@ -847,12 +829,9 @@ function rewriteBlockStatement(
 
 function rewriteReturnStatement(
   statement: types.ReturnStatement
-): StatementWithPreamble {
+): Preambleable<types.ReturnStatement | types.IfStatement> {
   if (!statement.argument) {
-    return {
-      preamble: [],
-      statement,
-    };
+    return addPreamble(statement);
   } else {
     if (statement.argument.type === "ConditionalExpression") {
       let { test, consequent, alternate } = statement.argument;
@@ -878,13 +857,13 @@ function rewriteReturnStatement(
       });
     }
 
-    let { preamble, expression } = rewriteExpression(statement.argument);
+    let { preamble, value } = rewriteExpression(statement.argument);
     return {
       preamble,
-      statement: {
+      value: {
         ...BASE_NODE,
         type: "ReturnStatement",
-        argument: expression,
+        argument: value,
       },
     };
   }
@@ -892,14 +871,14 @@ function rewriteReturnStatement(
 
 function rewriteFunctionDeclaration(
   statement: types.FunctionDeclaration
-): StatementWithPreamble {
+): Preambleable<types.Statement> {
   return {
     preamble: [],
-    statement: {
+    value: {
       ...statement,
       body: wrapWithBlock({
         preamble: rewriteScopedStatementBlock(statement.body.body),
-        statement: undefined,
+        value: undefined,
       }),
     },
   };
@@ -908,7 +887,7 @@ function rewriteFunctionDeclaration(
 function rewriteSwitchCase(case_: types.SwitchCase): types.SwitchCase {
   // preambles are NOT allowed
   // if test = undefined, it's a "default" case
-  let test = case_.test ? rewriteExpression(case_.test).expression : undefined;
+  let test = case_.test ? rewriteExpression(case_.test).value : undefined;
   let consequent = rewriteStatementArrayAsStatementArray(case_.consequent);
 
   return {
@@ -921,12 +900,12 @@ function rewriteSwitchCase(case_: types.SwitchCase): types.SwitchCase {
 
 function rewriteSwitchStatement(
   statement: types.SwitchStatement
-): StatementWithPreamble {
+): Preambleable<types.SwitchStatement> {
   let [preamble, [discriminant]] = rewriteAndReduce(statement.discriminant);
   let cases = statement.cases.map((case_) => rewriteSwitchCase(case_));
   return {
     preamble,
-    statement: {
+    value: {
       ...BASE_NODE,
       type: "SwitchStatement",
       discriminant,
@@ -942,11 +921,22 @@ function rewriteCatchClause(clause: types.CatchClause): types.CatchClause {
   };
 }
 
+function rewriteLabeledStatement(
+  statement: types.LabeledStatement
+): types.LabeledStatement {
+  return {
+    ...statement,
+    body: wrapWithBlock(rewriteStatement(statement.body)),
+  };
+}
+
 function rewriteTryStatement(
   statement: types.TryStatement
 ): types.TryStatement {
   let block = rewriteBlockStatement(statement.block);
-  let handler = rewriteCatchClause(statement.handler);
+  let handler = statement.handler
+    ? rewriteCatchClause(statement.handler)
+    : undefined;
   let finalizer = statement.finalizer
     ? rewriteBlockStatement(statement.finalizer)
     : undefined;
@@ -961,11 +951,11 @@ function rewriteTryStatement(
 
 function rewriteThrowStatement(
   statement: types.ThrowStatement
-): StatementWithPreamble {
+): Preambleable<types.ThrowStatement> {
   let [preamble, [argument]] = rewriteAndReduce(statement.argument);
   return {
     preamble,
-    statement: {
+    value: {
       ...statement,
       argument,
     },
@@ -974,13 +964,13 @@ function rewriteThrowStatement(
 
 function rewriteForOfInStatement(
   statement: types.ForOfStatement | types.ForInStatement
-): StatementWithPreamble {
+): Preambleable<types.ForInStatement | types.ForOfStatement> {
   let body = wrapWithBlock(rewriteStatement(statement.body));
   let [preamble, [right]] = rewriteAndReduce(statement.right);
 
   return {
     preamble,
-    statement: {
+    value: {
       ...statement,
       body,
       right,
@@ -992,30 +982,53 @@ function rewriteDoWhileStatement(
   statement: types.DoWhileStatement
 ): types.DoWhileStatement {
   let body = wrapWithBlock(rewriteStatement(statement.body));
-  let testRewritten = rewriteExpression(statement.test);
-
   // If there's something in the test, add it to the end of the loop
+
+  let test = rewriteAndConcat(statement.test, body.body);
+  return {
+    ...BASE_NODE,
+    type: "DoWhileStatement",
+    body,
+    test,
+  };
+}
+
+function rewriteWhileStatement(
+  statement: types.WhileStatement
+): Preambleable<types.WhileStatement> {
+  let body = wrapWithBlock(rewriteStatement(statement.body));
+  let testRewritten = rewriteExpression(statement.test);
+  let test = testRewritten.value;
+  let preamble = [];
+
+  // If there's a preamble in the test, add before the while loop
+  // and at the end of the block
   if (testRewritten.preamble) {
+    preamble = testRewritten.preamble;
     body.body = body.body.concat(testRewritten.preamble);
   }
 
-  let test = testRewritten.expression;
   return {
-		...BASE_NODE,
-		type: "DoWhileStatement",
-		body,
-		test
-	};
+    preamble,
+    value: {
+      ...BASE_NODE,
+      type: "WhileStatement",
+      body,
+      test,
+    },
+  };
 }
 
-function rewriteStatement(statement: types.Statement): StatementWithPreamble {
+function rewriteStatement(
+  statement: types.Statement
+): Preambleable<types.Statement> {
   switch (statement.type) {
     case "ExpressionStatement":
       return rewriteExpressionStatement(statement);
     case "ForStatement":
       return rewriteForStatement(statement);
     case "BlockStatement":
-      return addPreambleToStatement(rewriteBlockStatement(statement));
+      return addPreamble(rewriteBlockStatement(statement));
     case "IfStatement":
       return rewriteIfStatement(statement);
     case "FunctionDeclaration":
@@ -1025,38 +1038,40 @@ function rewriteStatement(statement: types.Statement): StatementWithPreamble {
     case "VariableDeclaration":
       return rewriteVariableDeclaration(statement);
     case "ClassDeclaration":
-      return addPreambleToStatement(rewriteClassDeclaration(statement));
+      return addPreamble(rewriteClassDeclaration(statement));
     case "SwitchStatement":
       return rewriteSwitchStatement(statement);
     case "TryStatement":
-      return addPreambleToStatement(rewriteTryStatement(statement));
+      return addPreamble(rewriteTryStatement(statement));
     case "ThrowStatement":
       return rewriteThrowStatement(statement);
     case "ForInStatement":
     case "ForOfStatement":
-			return rewriteForOfInStatement(statement);
-		case "DoWhileStatement":
-			return addPreambleToStatement(rewriteDoWhileStatement(statement));
+      return rewriteForOfInStatement(statement);
+    case "DoWhileStatement":
+      return addPreamble(rewriteDoWhileStatement(statement));
+    case "LabeledStatement":
+      return addPreamble(rewriteLabeledStatement(statement));
+    case "WhileStatement":
+      return rewriteWhileStatement(statement);
     case "ContinueStatement":
     case "BreakStatement":
     case "EmptyStatement":
-      return addPreambleToStatement(statement);
+      return addPreamble(statement);
   }
 
   console.log("UNSEEN STATEMENT TYPE:", statement.type);
-  return addPreambleToStatement(statement);
+  return addPreamble(statement);
 }
 
 function rewriteVariableDeclaration(
   statement: types.VariableDeclaration
-): StatementWithPreamble {
+): Preambleable<types.VariableDeclaration> {
   let declarations: types.Statement[] = [];
   for (let declarator of statement.declarations) {
-    let newInit = declarator.init;
-    if (newInit) {
-      let { preamble, expression } = rewriteExpression(newInit);
-      declarations = declarations.concat(preamble);
-      newInit = expression;
+    let init = declarator.init;
+    if (init) {
+			init = rewriteAndConcat(init, declarations);
     }
 
     declarations.push({
@@ -1069,7 +1084,7 @@ function rewriteVariableDeclaration(
           ...BASE_NODE,
           type: "VariableDeclarator",
           id: declarator.id,
-          init: newInit,
+          init,
           definite: false,
         },
       ],
@@ -1078,14 +1093,14 @@ function rewriteVariableDeclaration(
 
   return {
     preamble: declarations,
-    statement: undefined,
+    value: undefined,
   };
 }
 
 function rewriteStatementArrayAsStatementArray(statements: types.Statement[]) {
   let statements_: types.Statement[] = [];
   for (let statement of statements) {
-    let { preamble, statement: statement_ } = rewriteStatement(statement);
+    let { preamble, value: statement_ } = rewriteStatement(statement);
 
     statements_ = statements_.concat(preamble);
     statements_.push(statement_);
@@ -1111,6 +1126,8 @@ export default function rewriteProgram(program: types.Program): types.Program {
 
 import * as fs from "fs";
 import { createUndefined, createNull } from "./create";
+import { isCallSignatureDeclaration } from "typescript";
+import { wrap } from "module";
 
 let inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
 
