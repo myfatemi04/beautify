@@ -49,7 +49,9 @@ function combine(...infos: IdentifierAccess[][]): IdentifierAccess[] {
   return [].concat(...infos);
 }
 
-function getParentNodeOfMemberExpression(expression: types.Expression): types.Expression {
+function getParentNodeOfMemberExpression(
+  expression: types.Expression
+): types.Expression {
   if (expression.type === "MemberExpression") {
     return getParentNodeOfMemberExpression(expression);
   } else {
@@ -173,28 +175,35 @@ export function getIdentifiersExpressionUses(
   return [];
 }
 
-export function getInitialValuesStatementsUse(statements: types.Statement[]) {
-  let gone = {};
-  let used = {};
-  for (let statement of statements) {
-    switch (statement.type) {
-      case "ExpressionStatement": {
-        let uses = getIdentifiersExpressionUses(statement.expression);
-        for (let access of uses) {
-          if (access.type === "get") {
-            if (!gone[access.id.name]) {
-              used[access.id.name] = true;
-            }
-          } else if (access.type === "set") {
-            gone[access.id.name] = true;
-          }
-        }
-      }
+export function getIdentifiersStatementUses(
+  statement: types.Statement
+): IdentifierAccess[] {
+  switch (statement.type) {
+    case "ExpressionStatement": {
+      return getIdentifiersExpressionUses(statement.expression);
+    }
+    case "BlockStatement": {
+      return getIdentifiersStatementsUse(statement.body);
+    }
+    case "IfStatement": {
+      return combine(
+        getIdentifiersExpressionUses(statement.test),
+        getIdentifiersStatementUses(statement.consequent),
+        getIdentifiersStatementUses(statement.alternate)
+      );
     }
   }
 
-  return {
-    used,
-    gone
-  }
+  return [];
+}
+
+export function getIdentifiersStatementsUse(
+  statements: types.Statement[]
+): IdentifierAccess[] {
+
+  return combine(
+    ...statements.map(statement => {
+      return getIdentifiersStatementUses(statement) || [];
+    })
+  );
 }

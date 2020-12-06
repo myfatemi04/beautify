@@ -1131,7 +1131,7 @@ let { program } = parser.parse(inputCode);
 
 import * as uses from "./uses";
 
-console.log(uses.getInitialValuesStatementsUse(program.body));
+console.log(uses.getIdentifiersStatementsUse(program.body));
 
 let refactored = rewriteProgram(program);
 
