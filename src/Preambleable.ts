@@ -18,6 +18,7 @@ export type ExpressionNoPreamble =
   | types.BindExpression
   | types.ClassExpression
   | types.DoExpression
+  | types.FunctionExpression
   | types.Identifier
   | types.Import
   | types.JSXElement

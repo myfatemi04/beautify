@@ -1,32 +1,63 @@
 import * as types from "@babel/types";
-export default class Scope {
+import { getAllDeclaredIdentifiers } from "./getAllDeclaredIdentifiers";
+
+export interface Scope {
 	vars: {
-		[name: string]: {
+    [name: string]: {};
+  };
+  parent?: Scope;
+}
 
-		}
-	};
-	parent?: Scope
+export function hoistAll(statements: types.Statement[], scope: Scope): void {
+	for (let statement of statements) {
+		hoist(statement, scope);
+	}
+}
 
-	constructor() {
-		
+export function hoist(statement: types.Statement, scope: Scope): void {
+	if (statement == null) {
+		return;
 	}
 
-	isVarDefined(name: string) {
-		return !!this.vars[name];
-	}
+	switch (statement.type) {
+		case "VariableDeclaration":
+			// Hoist "var" declarations
+			if (statement.kind === "var") {
+				let identifiers = getAllDeclaredIdentifiers(statement);
 
-	defineVar(name: string) {
-		this.vars[name] = {};
-	}
-
-	hoist(statements: types.Statement[]) {
-		for (let statement of statements) {
-			switch (statement.type) {
-				case "VariableDeclaration":
-					for (let declarator of statement.declarations) {
-						
-					}
+				for (let identifier of identifiers) {
+					scope.vars[identifier.name] = true;
+				}
 			}
-		}
+			break;
+
+		case "BlockStatement":
+			hoistAll(statement.body, scope);
+			break;
+
+		case "IfStatement":
+			hoist(statement.consequent, scope);
+			hoist(statement.alternate, scope);
+			break;
+
+		case "DoWhileStatement":
+		case "WhileStatement":
+			hoist(statement.body, scope);
+			break;
+
+		case "ForStatement":
+			if (types.isVariableDeclaration(statement.init)) {
+				hoist(statement.init, scope);
+			}
+			hoist(statement.body, scope);
+			break;
+
+		case "ForOfStatement":
+		case "ForInStatement":
+			if (types.isVariableDeclaration(statement.left)) {
+				hoist(statement.left, scope);
+			}
+			hoist(statement.body, scope);
+			break;
 	}
 }
