@@ -1,3 +1,4 @@
+import * as types from "@babel/types";
 export default class Scope {
 	vars: {
 		[name: string]: {
@@ -16,5 +17,16 @@ export default class Scope {
 
 	defineVar(name: string) {
 		this.vars[name] = {};
+	}
+
+	hoist(statements: types.Statement[]) {
+		for (let statement of statements) {
+			switch (statement.type) {
+				case "VariableDeclaration":
+					for (let declarator of statement.declarations) {
+						
+					}
+			}
+		}
 	}
 }

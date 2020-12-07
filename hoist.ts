@@ -1,19 +1,5 @@
 import * as types from "@babel/types";
-import { createIdentifier } from "./create";
-import BASE_NODE from "./base_node";
 import Scope from "./scope";
-
-function fromVarToLet(
-  statement: types.VariableDeclaration
-): types.VariableDeclaration {
-  return {
-    ...BASE_NODE,
-    type: "VariableDeclaration",
-    kind: "let",
-    declarations: statement.declarations,
-    declare: false,
-  };
-}
 
 function hoistFor(
   forStatement: types.ForStatement
@@ -55,21 +41,13 @@ export function splitDeclarationAndAssignments(
 
   if (statement.kind === "var") {
     for (let declarator of statement.declarations) {
-      if (declarator.id.type === "Identifier") {
-        declarations.push(types.variableDeclarator(declarator.id));
+      declarations.push(types.variableDeclarator(declarator.id));
 
-        if (declarator.init) {
-          // Add the assignment afterwards
-          assignments.push(
-            types.assignmentExpression(
-              "=",
-              types.identifier(declarator.id.name),
-              declarator.init
-            )
-          );
-        }
-      } else {
-        declarations = declarations.concat(statement.declarations);
+      if (declarator.init) {
+        // Add the assignment afterwards
+        assignments.push(
+          types.assignmentExpression("=", declarator.id, declarator.init)
+        );
       }
     }
   } else {
@@ -96,15 +74,20 @@ export default function hoist(
   statements: types.Statement[]
   // scope: Scope
 ): types.Statement[] {
-  let notHoisted = [];
+  let hoisted: types.Statement[] = [];
+  let notHoisted: types.Statement[] = [];
 
   for (let statement of statements) {
     if (statement.type === "VariableDeclaration") {
       let { declarations, assignments } = splitDeclarationAndAssignments(
         statement
       );
-      for (let declaration of declarations) {
-      }
+      hoisted = hoisted.concat(types.variableDeclaration("let", declarations));
+      notHoisted = notHoisted.concat(
+        ...assignments.map((assignment) =>
+          types.expressionStatement(assignment)
+        )
+      );
     } else if (statement.type === "ForStatement") {
       notHoisted.push(statement);
     } else {
@@ -112,5 +95,5 @@ export default function hoist(
     }
   }
 
-  return [].concat(notHoisted);
+  return hoisted.concat(notHoisted);
 }

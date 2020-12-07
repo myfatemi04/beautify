@@ -1,10 +1,7 @@
 import * as parser from "@babel/parser";
 import generate from "@babel/generator";
 import * as types from "@babel/types";
-import BASE_NODE from "./base_node";
 import * as fs from "fs";
-import { createUndefined, createNull } from "./create";
-import { toExpressionStatement } from "./convert";
 import hoist from "./hoist";
 import Preambleable from "./Preambleable";
 
@@ -46,8 +43,8 @@ function rewriteConditionalExpressionStatement(
 ): Preambleable<types.IfStatement> {
   return createIfStatement(
     expression.test,
-    toExpressionStatement(expression.consequent),
-    toExpressionStatement(expression.alternate)
+    types.expressionStatement(expression.consequent),
+    types.expressionStatement(expression.alternate)
   );
 }
 
@@ -85,13 +82,7 @@ function rewriteNegatedUnaryExpressionArgument(
     let { preamble, value } = rewriteExpression(argument);
     return {
       preamble,
-      value: {
-        ...BASE_NODE,
-        type: "UnaryExpression",
-        operator: "!",
-        prefix: false,
-        argument: value,
-      },
+      value: types.unaryExpression("!", value),
     };
   }
 }
@@ -104,7 +95,7 @@ function rewriteUnaryExpression(
   } else if (expression.operator === "void") {
     if (expression.argument.type === "NumericLiteral") {
       if (expression.argument.value === 0) {
-        return addPreamble(createUndefined());
+        return addPreamble(types.identifier("undefined"));
       }
     }
   }
@@ -138,13 +129,7 @@ function rewriteCallExpression(
 
   return {
     preamble,
-    value: {
-      ...BASE_NODE,
-      ...expression,
-      callee: calleeExpression,
-      type: "CallExpression",
-      arguments: args,
-    },
+    value: types.callExpression(calleeExpression, args),
   };
 }
 
@@ -207,11 +192,7 @@ function rewriteObjectExpression(
 
   return {
     preamble,
-    value: {
-      ...BASE_NODE,
-      type: "ObjectExpression",
-      properties,
-    },
+    value: types.objectExpression(properties),
   };
 }
 
@@ -270,13 +251,11 @@ function rewriteConditionalExpression(
 
   return {
     preamble,
-    value: {
-      ...BASE_NODE,
-      type: "ConditionalExpression",
-      test: testRewritten.value,
-      consequent: consequentRewritten.value,
-      alternate: alternateRewritten.value,
-    },
+    value: types.conditionalExpression(
+      testRewritten.value,
+      consequentRewritten.value,
+      alternateRewritten.value
+    ),
   };
 }
 
@@ -289,7 +268,7 @@ function rewriteBinaryExpression(
   expression: types.BinaryExpression
 ): Preambleable<types.BinaryExpression> {
   let preamble = [];
-  let { left, right } = expression;
+  let { left, right, operator } = expression;
 
   if (left.type !== "PrivateName") {
     let leftRewritten = rewriteExpression(left);
@@ -303,13 +282,7 @@ function rewriteBinaryExpression(
 
   return {
     preamble,
-    value: {
-      ...BASE_NODE,
-      type: "BinaryExpression",
-      left,
-      right,
-      operator: expression.operator,
-    },
+    value: types.binaryExpression(operator, left, right),
   };
 }
 
@@ -321,26 +294,20 @@ function rewriteMemberExpression(
   expression: types.MemberExpression
 ): Preambleable<types.MemberExpression> {
   let preamble = [];
-  let rewrittenObject = rewriteExpression(expression.object);
-  let object = rewrittenObject.value;
-  preamble = preamble.concat(rewrittenObject.preamble);
+  let object = rewriteAndConcat(expression.object, preamble);
   let property = expression.property;
   if (expression.property.type !== "PrivateName") {
-    let rewrittenProperty = rewriteExpression(expression.property);
-    preamble = preamble.concat(rewrittenProperty.preamble);
-    property = rewrittenProperty.value;
+    property = rewriteAndConcat(expression.property, preamble);
   }
 
   return {
     preamble,
-    value: {
-      ...BASE_NODE,
-      type: "MemberExpression",
+    value: types.memberExpression(
       object,
       property,
-      computed: expression.computed,
-      optional: expression.optional,
-    },
+      expression.computed,
+      expression.optional
+    ),
   };
 }
 
@@ -521,19 +488,19 @@ function rewriteLogicalExpressionAsIfStatement(
   if (expression.operator == "&&") {
     return createIfStatement(
       expression.left,
-      toExpressionStatement(expression.right),
+      types.expressionStatement(expression.right),
       undefined
     );
   } else if (expression.operator === "||") {
     return createIfStatement(
       negateExpression(expression.left),
-      toExpressionStatement(expression.right),
+      types.expressionStatement(expression.right),
       undefined
     );
   } else if (expression.operator === "??") {
     return createIfStatement(
-      types.binaryExpression("!=", expression.left, createNull()),
-      toExpressionStatement(expression.right),
+      types.binaryExpression("!=", expression.left, types.nullLiteral()),
+      types.expressionStatement(expression.right),
       undefined
     );
   }
@@ -556,7 +523,7 @@ function rewriteSequenceExpression(
   } else {
     let preambleExpressions = expressions.slice(0, expressions.length - 1);
     let preambleStatements: types.ExpressionStatement[] = preambleExpressions.map(
-      toExpressionStatement
+      (expression) => types.expressionStatement(expression)
     );
     let preamble: types.Statement[] = [];
     for (let statement of preambleStatements) {
@@ -595,7 +562,7 @@ function rewriteExpressionStatement(
       let { preamble, value } = rewriteExpression(expression);
       return {
         preamble,
-        value: toExpressionStatement(value),
+        value: types.expressionStatement(value),
       };
     }
   }
@@ -936,9 +903,6 @@ export default function rewriteProgram(program: types.Program): types.Program {
 let inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
 
 let { program } = parser.parse(inputCode);
-
-// import * as uses from "./uses";
-// console.log(uses.getIdentifiersStatementsUse(program.body));
 
 let refactored = rewriteProgram(program);
 

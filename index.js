@@ -21,23 +21,19 @@ exports.__esModule = true;
 var parser = require("@babel/parser");
 var generator_1 = require("@babel/generator");
 var types = require("@babel/types");
-var base_node_1 = require("./base_node");
+var fs = require("fs");
+var hoist_1 = require("./hoist");
 function rewriteNegatedUnaryNumericLiteral(literal) {
-    if (literal.value === 0) {
-        return __assign(__assign({}, base_node_1["default"]), { type: "BooleanLiteral", value: true });
-    }
-    else {
-        return __assign(__assign({}, base_node_1["default"]), { type: "BooleanLiteral", value: false });
-    }
+    return types.booleanLiteral(literal.value === 0);
 }
 function negateExpression(expression) {
     switch (expression.type) {
         case "LogicalExpression":
             if (expression.operator === "&&") {
-                return __assign(__assign({}, base_node_1["default"]), { type: "LogicalExpression", operator: "||", left: negateExpression(expression.left), right: negateExpression(expression.right) });
+                return types.logicalExpression("||", negateExpression(expression.left), negateExpression(expression.right));
             }
             else if (expression.operator === "||") {
-                return __assign(__assign({}, base_node_1["default"]), { type: "LogicalExpression", operator: "&&", left: negateExpression(expression.left), right: negateExpression(expression.right) });
+                return types.logicalExpression("&&", negateExpression(expression.left), negateExpression(expression.right));
             }
         case "UnaryExpression":
             if (expression.operator === "!") {
@@ -46,10 +42,10 @@ function negateExpression(expression) {
             }
     }
     // Return a regular negated expression
-    return __assign(__assign({}, base_node_1["default"]), { type: "UnaryExpression", operator: "!", prefix: false, argument: expression });
+    return types.unaryExpression("!", expression);
 }
 function rewriteConditionalExpressionStatement(expression) {
-    return createIfStatement(expression.test, convert_1.toExpressionStatement(expression.consequent), convert_1.toExpressionStatement(expression.alternate));
+    return createIfStatement(expression.test, types.expressionStatement(expression.consequent), types.expressionStatement(expression.alternate));
 }
 function rewriteAndReduce() {
     var expressions = [];
@@ -65,11 +61,6 @@ function rewriteAndReduce() {
         members.push(rewritten.value);
     }
     return [preamble, members];
-}
-function createBinaryExpression(operator, left, right) {
-    return __assign(__assign({}, base_node_1["default"]), { type: "BinaryExpression", operator: operator,
-        left: left,
-        right: right });
 }
 function addPreamble(value) {
     return {
@@ -90,7 +81,7 @@ function rewriteNegatedUnaryExpressionArgument(argument) {
         var _a = rewriteExpression(argument), preamble = _a.preamble, value = _a.value;
         return {
             preamble: preamble,
-            value: __assign(__assign({}, base_node_1["default"]), { type: "UnaryExpression", operator: "!", prefix: false, argument: value })
+            value: types.unaryExpression("!", value)
         };
     }
 }
@@ -101,7 +92,7 @@ function rewriteUnaryExpression(expression) {
     else if (expression.operator === "void") {
         if (expression.argument.type === "NumericLiteral") {
             if (expression.argument.value === 0) {
-                return addPreamble(create_1.createUndefined());
+                return addPreamble(types.identifier("undefined"));
             }
         }
     }
@@ -129,7 +120,7 @@ function rewriteCallExpression(expression) {
     }
     return {
         preamble: preamble,
-        value: __assign(__assign(__assign({}, base_node_1["default"]), expression), { callee: calleeExpression, type: "CallExpression", arguments: args })
+        value: types.callExpression(calleeExpression, args)
     };
 }
 function rewriteAssignmentExpression(expression) {
@@ -175,7 +166,7 @@ function rewriteObjectExpression(expression) {
     }
     return {
         preamble: preamble,
-        value: __assign(__assign({}, base_node_1["default"]), { type: "ObjectExpression", properties: properties })
+        value: types.objectExpression(properties)
     };
 }
 function rewriteFunctionExpression(expression) {
@@ -213,7 +204,7 @@ function rewriteConditionalExpression(expression) {
     var preamble = [].concat(testRewritten.preamble, consequentRewritten.preamble, alternateRewritten.preamble);
     return {
         preamble: preamble,
-        value: __assign(__assign({}, base_node_1["default"]), { type: "ConditionalExpression", test: testRewritten.value, consequent: consequentRewritten.value, alternate: alternateRewritten.value })
+        value: types.conditionalExpression(testRewritten.value, consequentRewritten.value, alternateRewritten.value)
     };
 }
 /**
@@ -223,7 +214,7 @@ function rewriteConditionalExpression(expression) {
  */
 function rewriteBinaryExpression(expression) {
     var preamble = [];
-    var left = expression.left, right = expression.right;
+    var left = expression.left, right = expression.right, operator = expression.operator;
     if (left.type !== "PrivateName") {
         var leftRewritten = rewriteExpression(left);
         preamble = preamble.concat(leftRewritten.preamble);
@@ -234,8 +225,7 @@ function rewriteBinaryExpression(expression) {
     right = rightRewritten.value;
     return {
         preamble: preamble,
-        value: __assign(__assign({}, base_node_1["default"]), { type: "BinaryExpression", left: left,
-            right: right, operator: expression.operator })
+        value: types.binaryExpression(operator, left, right)
     };
 }
 /**
@@ -244,19 +234,14 @@ function rewriteBinaryExpression(expression) {
  */
 function rewriteMemberExpression(expression) {
     var preamble = [];
-    var rewrittenObject = rewriteExpression(expression.object);
-    var object = rewrittenObject.value;
-    preamble = preamble.concat(rewrittenObject.preamble);
+    var object = rewriteAndConcat(expression.object, preamble);
     var property = expression.property;
     if (expression.property.type !== "PrivateName") {
-        var rewrittenProperty = rewriteExpression(expression.property);
-        preamble = preamble.concat(rewrittenProperty.preamble);
-        property = rewrittenProperty.value;
+        property = rewriteAndConcat(expression.property, preamble);
     }
     return {
         preamble: preamble,
-        value: __assign(__assign({}, base_node_1["default"]), { type: "MemberExpression", object: object,
-            property: property, computed: expression.computed, optional: expression.optional })
+        value: types.memberExpression(object, property, expression.computed, expression.optional)
     };
 }
 /**
@@ -374,19 +359,17 @@ function rewriteExpression(expression) {
 }
 function rewriteLogicalExpressionAsIfStatement(expression) {
     if (expression.operator == "&&") {
-        return createIfStatement(expression.left, convert_1.toExpressionStatement(expression.right), undefined);
+        return createIfStatement(expression.left, types.expressionStatement(expression.right), undefined);
     }
     else if (expression.operator === "||") {
-        return createIfStatement(negateExpression(expression.left), convert_1.toExpressionStatement(expression.right), undefined);
+        return createIfStatement(negateExpression(expression.left), types.expressionStatement(expression.right), undefined);
     }
     else if (expression.operator === "??") {
-        return createIfStatement(createBinaryExpression("!=", expression.left, create_1.createNull()), convert_1.toExpressionStatement(expression.right), undefined);
+        return createIfStatement(types.binaryExpression("!=", expression.left, types.nullLiteral()), types.expressionStatement(expression.right), undefined);
     }
 }
 function createIfStatement(test, consequent, alternate) {
-    return rewriteIfStatement(__assign(__assign({}, base_node_1["default"]), { type: "IfStatement", test: test,
-        consequent: consequent,
-        alternate: alternate }));
+    return rewriteIfStatement(types.ifStatement(test, consequent, alternate));
 }
 function rewriteSequenceExpression(sequence) {
     var expressions = sequence.expressions;
@@ -395,7 +378,7 @@ function rewriteSequenceExpression(sequence) {
     }
     else {
         var preambleExpressions = expressions.slice(0, expressions.length - 1);
-        var preambleStatements = preambleExpressions.map(convert_1.toExpressionStatement);
+        var preambleStatements = preambleExpressions.map(function (expression) { return types.expressionStatement(expression); });
         var preamble = [];
         for (var _i = 0, preambleStatements_1 = preambleStatements; _i < preambleStatements_1.length; _i++) {
             var statement = preambleStatements_1[_i];
@@ -425,27 +408,25 @@ function rewriteExpressionStatement(statement) {
             var _a = rewriteExpression(expression), preamble = _a.preamble, value = _a.value;
             return {
                 preamble: preamble,
-                value: convert_1.toExpressionStatement(value)
+                value: types.expressionStatement(value)
             };
         }
     }
 }
 function wrapWithBlock(statement) {
     if (statement.preamble.length > 0) {
-        return __assign(__assign({}, base_node_1["default"]), { type: "BlockStatement", directives: [], body: __spreadArrays(statement.preamble, [statement.value]) });
+        return types.blockStatement(__spreadArrays(statement.preamble, [statement.value]));
     }
     else {
         if (!statement.value) {
-            return __assign(__assign({}, base_node_1["default"]), { type: "BlockStatement", directives: [], body: [] });
+            return types.blockStatement([]);
+        }
+        else if (statement.value.type === "BlockStatement") {
+            // prevent wrapping BlockStatements in BlockStatements
+            return statement.value;
         }
         else {
-            // prevent wrapping BlockStatements in BlockStatements
-            if (statement.value.type === "BlockStatement") {
-                return statement.value;
-            }
-            else {
-                return __assign(__assign({}, base_node_1["default"]), { type: "BlockStatement", directives: [], body: [statement.value] });
-            }
+            return types.blockStatement([statement.value]);
         }
     }
 }
@@ -476,8 +457,7 @@ function rewriteForStatement(statement) {
     }
     return {
         preamble: preamble,
-        value: __assign(__assign({}, base_node_1["default"]), { type: "ForStatement", init: init,
-            test: test, update: statement.update, body: wrapWithBlock(rewriteStatement(statement.body)) })
+        value: types.forStatement(init, test, statement.update, wrapWithBlock(rewriteStatement(statement.body)))
     };
 }
 function rewriteIfStatement(statement) {
@@ -494,13 +474,11 @@ function rewriteIfStatement(statement) {
     }
     return {
         preamble: preamble,
-        value: __assign(__assign({}, base_node_1["default"]), { type: "IfStatement", test: test,
-            consequent: consequent,
-            alternate: alternate })
+        value: types.ifStatement(test, consequent, alternate)
     };
 }
 function rewriteBlockStatement(statement) {
-    return __assign(__assign({}, base_node_1["default"]), { directives: [], type: "BlockStatement", body: rewriteStatementArrayAsStatementArray(statement.body) });
+    return types.blockStatement(rewriteStatementArrayAsStatementArray(statement.body));
 }
 function rewriteReturnStatement(statement) {
     if (!statement.argument) {
@@ -509,24 +487,22 @@ function rewriteReturnStatement(statement) {
     else {
         if (statement.argument.type === "ConditionalExpression") {
             var _a = statement.argument, test = _a.test, consequent = _a.consequent, alternate = _a.alternate;
-            var returnsConsequent = __assign(__assign({}, base_node_1["default"]), { type: "ReturnStatement", argument: consequent });
-            var returnsAlternate = __assign(__assign({}, base_node_1["default"]), { type: "ReturnStatement", argument: alternate });
-            return rewriteIfStatement(__assign(__assign({}, base_node_1["default"]), { type: "IfStatement", test: test, consequent: returnsConsequent, alternate: returnsAlternate }));
+            return createIfStatement(test, types.returnStatement(consequent), types.returnStatement(alternate));
         }
         var _b = rewriteExpression(statement.argument), preamble = _b.preamble, value = _b.value;
         return {
             preamble: preamble,
-            value: __assign(__assign({}, base_node_1["default"]), { type: "ReturnStatement", argument: value })
+            value: types.returnStatement(value)
         };
     }
 }
 function rewriteFunctionDeclaration(statement) {
     return {
         preamble: [],
-        value: __assign(__assign({}, statement), { body: wrapWithBlock({
-                preamble: rewriteScopedStatementBlock(statement.body.body),
-                value: undefined
-            }) })
+        value: types.functionDeclaration(statement.id, statement.params, wrapWithBlock({
+            preamble: rewriteScopedStatementBlock(statement.body.body),
+            value: undefined
+        }))
     };
 }
 function rewriteSwitchCase(case_) {
@@ -534,16 +510,14 @@ function rewriteSwitchCase(case_) {
     // if test = undefined, it's a "default" case
     var test = case_.test ? rewriteExpression(case_.test).value : undefined;
     var consequent = rewriteStatementArrayAsStatementArray(case_.consequent);
-    return __assign(__assign({}, base_node_1["default"]), { type: "SwitchCase", test: test,
-        consequent: consequent });
+    return types.switchCase(test, consequent);
 }
 function rewriteSwitchStatement(statement) {
     var _a = rewriteAndReduce(statement.discriminant), preamble = _a[0], discriminant = _a[1][0];
     var cases = statement.cases.map(function (case_) { return rewriteSwitchCase(case_); });
     return {
         preamble: preamble,
-        value: __assign(__assign({}, base_node_1["default"]), { type: "SwitchStatement", discriminant: discriminant,
-            cases: cases })
+        value: types.switchStatement(discriminant, cases)
     };
 }
 function rewriteCatchClause(clause) {
@@ -560,15 +534,13 @@ function rewriteTryStatement(statement) {
     var finalizer = statement.finalizer
         ? rewriteBlockStatement(statement.finalizer)
         : undefined;
-    return __assign(__assign({}, base_node_1["default"]), { type: "TryStatement", block: block,
-        handler: handler,
-        finalizer: finalizer });
+    return types.tryStatement(block, handler, finalizer);
 }
 function rewriteThrowStatement(statement) {
     var _a = rewriteAndReduce(statement.argument), preamble = _a[0], argument = _a[1][0];
     return {
         preamble: preamble,
-        value: __assign(__assign({}, statement), { argument: argument })
+        value: types.throwStatement(argument)
     };
 }
 function rewriteForOfInStatement(statement) {
@@ -584,8 +556,7 @@ function rewriteDoWhileStatement(statement) {
     var body = wrapWithBlock(rewriteStatement(statement.body));
     // If there's something in the test, add it to the end of the loop
     var test = rewriteAndConcat(statement.test, body.body);
-    return __assign(__assign({}, base_node_1["default"]), { type: "DoWhileStatement", body: body,
-        test: test });
+    return types.doWhileStatement(test, body);
 }
 function rewriteWhileStatement(statement) {
     var body = wrapWithBlock(rewriteStatement(statement.body));
@@ -600,8 +571,7 @@ function rewriteWhileStatement(statement) {
     }
     return {
         preamble: preamble,
-        value: __assign(__assign({}, base_node_1["default"]), { type: "WhileStatement", body: body,
-            test: test })
+        value: types.whileStatement(test, body)
     };
 }
 function rewriteStatement(statement) {
@@ -653,9 +623,9 @@ function rewriteVariableDeclaration(statement) {
         if (init) {
             init = rewriteAndConcat(init, declarations);
         }
-        declarations.push(__assign(__assign({}, base_node_1["default"]), { type: "VariableDeclaration", kind: statement.kind, declare: false, declarations: [
-                __assign(__assign({}, base_node_1["default"]), { type: "VariableDeclarator", id: declarator.id, init: init, definite: false }),
-            ] }));
+        declarations.push(types.variableDeclaration(statement.kind, [
+            types.variableDeclarator(declarator.id, declarator.init),
+        ]));
     }
     return {
         preamble: declarations,
@@ -682,14 +652,10 @@ function rewriteProgram(program) {
     return __assign(__assign({}, program), { body: rewriteScopedStatementBlock(program.body) });
 }
 exports["default"] = rewriteProgram;
-var fs = require("fs");
-var create_1 = require("./create");
 var inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
 var program = parser.parse(inputCode).program;
-var convert_1 = require("./convert");
-var hoist_1 = require("./hoist");
+// import * as uses from "./uses";
 // console.log(uses.getIdentifiersStatementsUse(program.body));
 var refactored = rewriteProgram(program);
 var code = generator_1["default"](refactored).code;
 fs.writeFileSync("out.js", code, { encoding: "utf8" });
-console.log(types.arrayExpression([]));
