@@ -2,80 +2,33 @@ import * as parser from "@babel/parser";
 import generate from "@babel/generator";
 import * as types from "@babel/types";
 import BASE_NODE from "./base_node";
-
-interface Preambleable<T> {
-  preamble: types.Statement[];
-  value: T;
-}
-
-function fromVarToLet(
-  statement: types.VariableDeclaration
-): types.VariableDeclaration {
-  return {
-    ...BASE_NODE,
-    type: "VariableDeclaration",
-    kind: "let",
-    declarations: statement.declarations,
-    declare: false,
-  };
-}
-
-function hoist(statements: types.Statement[]): types.Statement[] {
-  let variableDeclarations: types.VariableDeclaration[] = [];
-  let functionDeclarations: types.FunctionDeclaration[] = [];
-  let notHoisted: types.Statement[] = [];
-
-  for (let statement of statements) {
-    if (statement.type === "VariableDeclaration" && statement.kind === "var") {
-      // Convert "var" to "let"
-      variableDeclarations.push(fromVarToLet(statement));
-    } else if (statement.type === "FunctionDeclaration") {
-      functionDeclarations.push(statement);
-    } else {
-      notHoisted.push(statement);
-    }
-  }
-
-  return [].concat(variableDeclarations, functionDeclarations, notHoisted);
-}
+import * as fs from "fs";
+import { createUndefined, createNull } from "./create";
+import { toExpressionStatement } from "./convert";
+import hoist from "./hoist";
+import Preambleable from "./Preambleable";
 
 function rewriteNegatedUnaryNumericLiteral(
   literal: types.NumericLiteral
 ): types.BooleanLiteral {
-  if (literal.value === 0) {
-    return {
-      ...BASE_NODE,
-      type: "BooleanLiteral",
-      value: true,
-    };
-  } else {
-    return {
-      ...BASE_NODE,
-      type: "BooleanLiteral",
-      value: false,
-    };
-  }
+  return types.booleanLiteral(literal.value === 0);
 }
 
 function negateExpression(expression: types.Expression): types.Expression {
   switch (expression.type) {
     case "LogicalExpression":
       if (expression.operator === "&&") {
-        return {
-          ...BASE_NODE,
-          type: "LogicalExpression",
-          operator: "||",
-          left: negateExpression(expression.left),
-          right: negateExpression(expression.right),
-        };
+        return types.logicalExpression(
+          "||",
+          negateExpression(expression.left),
+          negateExpression(expression.right)
+        );
       } else if (expression.operator === "||") {
-        return {
-          ...BASE_NODE,
-          type: "LogicalExpression",
-          operator: "&&",
-          left: negateExpression(expression.left),
-          right: negateExpression(expression.right),
-        };
+        return types.logicalExpression(
+          "&&",
+          negateExpression(expression.left),
+          negateExpression(expression.right)
+        );
       }
     case "UnaryExpression":
       if (expression.operator === "!") {
@@ -85,13 +38,7 @@ function negateExpression(expression: types.Expression): types.Expression {
   }
 
   // Return a regular negated expression
-  return {
-    ...BASE_NODE,
-    type: "UnaryExpression",
-    operator: "!",
-    prefix: false,
-    argument: expression,
-  };
+  return types.unaryExpression("!", expression);
 }
 
 function rewriteConditionalExpressionStatement(
@@ -116,42 +63,6 @@ function rewriteAndReduce(
   }
 
   return [preamble, members];
-}
-
-function createBinaryExpression(
-  operator:
-    | "+"
-    | "-"
-    | "/"
-    | "%"
-    | "*"
-    | "**"
-    | "&"
-    | "|"
-    | ">>"
-    | ">>>"
-    | "<<"
-    | "^"
-    | "=="
-    | "==="
-    | "!="
-    | "!=="
-    | "in"
-    | "instanceof"
-    | ">"
-    | "<"
-    | ">="
-    | "<=",
-  left: types.Expression,
-  right: types.Expression
-): types.BinaryExpression {
-  return {
-    ...BASE_NODE,
-    type: "BinaryExpression",
-    operator,
-    left,
-    right,
-  };
 }
 
 function addPreamble<T>(value: T): Preambleable<T> {
@@ -619,10 +530,9 @@ function rewriteLogicalExpressionAsIfStatement(
       toExpressionStatement(expression.right),
       undefined
     );
-    // TODO: Come back to this
   } else if (expression.operator === "??") {
     return createIfStatement(
-      createBinaryExpression("!=", expression.left, createNull()),
+      types.binaryExpression("!=", expression.left, createNull()),
       toExpressionStatement(expression.right),
       undefined
     );
@@ -634,23 +544,7 @@ function createIfStatement(
   consequent: types.Statement,
   alternate: types.Statement
 ): Preambleable<types.IfStatement> {
-  return rewriteIfStatement({
-    ...BASE_NODE,
-    type: "IfStatement",
-    test,
-    consequent,
-    alternate,
-  });
-}
-
-function toExpressionStatement(
-  expression: types.Expression
-): types.ExpressionStatement {
-  return {
-    ...BASE_NODE,
-    type: "ExpressionStatement",
-    expression,
-  };
+  return rewriteIfStatement(types.ifStatement(test, consequent, alternate));
 }
 
 function rewriteSequenceExpression(
@@ -711,32 +605,15 @@ function wrapWithBlock(
   statement: Preambleable<types.Statement>
 ): types.BlockStatement {
   if (statement.preamble.length > 0) {
-    return {
-      ...BASE_NODE,
-      type: "BlockStatement",
-      directives: [],
-      body: [...statement.preamble, statement.value],
-    };
+    return types.blockStatement([...statement.preamble, statement.value]);
   } else {
     if (!statement.value) {
-      return {
-        ...BASE_NODE,
-        type: "BlockStatement",
-        directives: [],
-        body: [],
-      };
-    } else {
+      return types.blockStatement([]);
+    } else if (statement.value.type === "BlockStatement") {
       // prevent wrapping BlockStatements in BlockStatements
-      if (statement.value.type === "BlockStatement") {
-        return statement.value;
-      } else {
-        return {
-          ...BASE_NODE,
-          type: "BlockStatement",
-          directives: [],
-          body: [statement.value],
-        };
-      }
+      return statement.value;
+    } else {
+      return types.blockStatement([statement.value]);
     }
   }
 }
@@ -756,10 +633,10 @@ function rewriteForStatement(
 
   if (statement.init) {
     if (statement.init.type === "VariableDeclaration") {
-      let { preamble } = rewriteVariableDeclaration(statement.init);
-      if (preamble.length > 0) {
-        init = preamble[preamble.length - 1];
-        preamble = preamble.concat(preamble.slice(0, preamble.length - 1));
+      let { preamble: preamble_ } = rewriteVariableDeclaration(statement.init);
+      if (preamble_.length > 0) {
+        init = preamble_[preamble_.length - 1];
+        preamble = preamble.concat(preamble_.slice(0, preamble_.length - 1));
       }
     } else {
       init = rewriteAndConcat(statement.init, preamble);
@@ -772,14 +649,12 @@ function rewriteForStatement(
 
   return {
     preamble,
-    value: {
-      ...BASE_NODE,
-      type: "ForStatement",
+    value: types.forStatement(
       init,
       test,
-      update: statement.update,
-      body: wrapWithBlock(rewriteStatement(statement.body)),
-    },
+      statement.update,
+      wrapWithBlock(rewriteStatement(statement.body))
+    ),
   };
 }
 
@@ -804,25 +679,16 @@ function rewriteIfStatement(
 
   return {
     preamble,
-    value: {
-      ...BASE_NODE,
-      type: "IfStatement",
-      test,
-      consequent,
-      alternate,
-    },
+    value: types.ifStatement(test, consequent, alternate),
   };
 }
 
 function rewriteBlockStatement(
   statement: types.BlockStatement
 ): types.BlockStatement {
-  return {
-    ...BASE_NODE,
-    directives: [],
-    type: "BlockStatement",
-    body: rewriteStatementArrayAsStatementArray(statement.body),
-  };
+  return types.blockStatement(
+    rewriteStatementArrayAsStatementArray(statement.body)
+  );
 }
 
 function rewriteReturnStatement(
@@ -834,35 +700,17 @@ function rewriteReturnStatement(
     if (statement.argument.type === "ConditionalExpression") {
       let { test, consequent, alternate } = statement.argument;
 
-      let returnsConsequent: types.ReturnStatement = {
-        ...BASE_NODE,
-        type: "ReturnStatement",
-        argument: consequent,
-      };
-
-      let returnsAlternate: types.ReturnStatement = {
-        ...BASE_NODE,
-        type: "ReturnStatement",
-        argument: alternate,
-      };
-
-      return rewriteIfStatement({
-        ...BASE_NODE,
-        type: "IfStatement",
+      return createIfStatement(
         test,
-        consequent: returnsConsequent,
-        alternate: returnsAlternate,
-      });
+        types.returnStatement(consequent),
+        types.returnStatement(alternate)
+      );
     }
 
     let { preamble, value } = rewriteExpression(statement.argument);
     return {
       preamble,
-      value: {
-        ...BASE_NODE,
-        type: "ReturnStatement",
-        argument: value,
-      },
+      value: types.returnStatement(value),
     };
   }
 }
@@ -872,13 +720,14 @@ function rewriteFunctionDeclaration(
 ): Preambleable<types.Statement> {
   return {
     preamble: [],
-    value: {
-      ...statement,
-      body: wrapWithBlock({
+    value: types.functionDeclaration(
+      statement.id,
+      statement.params,
+      wrapWithBlock({
         preamble: rewriteScopedStatementBlock(statement.body.body),
         value: undefined,
-      }),
-    },
+      })
+    ),
   };
 }
 
@@ -888,12 +737,7 @@ function rewriteSwitchCase(case_: types.SwitchCase): types.SwitchCase {
   let test = case_.test ? rewriteExpression(case_.test).value : undefined;
   let consequent = rewriteStatementArrayAsStatementArray(case_.consequent);
 
-  return {
-    ...BASE_NODE,
-    type: "SwitchCase",
-    test,
-    consequent,
-  };
+  return types.switchCase(test, consequent);
 }
 
 function rewriteSwitchStatement(
@@ -903,12 +747,7 @@ function rewriteSwitchStatement(
   let cases = statement.cases.map((case_) => rewriteSwitchCase(case_));
   return {
     preamble,
-    value: {
-      ...BASE_NODE,
-      type: "SwitchStatement",
-      discriminant,
-      cases,
-    },
+    value: types.switchStatement(discriminant, cases),
   };
 }
 
@@ -938,13 +777,8 @@ function rewriteTryStatement(
   let finalizer = statement.finalizer
     ? rewriteBlockStatement(statement.finalizer)
     : undefined;
-  return {
-    ...BASE_NODE,
-    type: "TryStatement",
-    block,
-    handler,
-    finalizer,
-  };
+
+  return types.tryStatement(block, handler, finalizer);
 }
 
 function rewriteThrowStatement(
@@ -953,10 +787,7 @@ function rewriteThrowStatement(
   let [preamble, [argument]] = rewriteAndReduce(statement.argument);
   return {
     preamble,
-    value: {
-      ...statement,
-      argument,
-    },
+    value: types.throwStatement(argument),
   };
 }
 
@@ -980,15 +811,10 @@ function rewriteDoWhileStatement(
   statement: types.DoWhileStatement
 ): types.DoWhileStatement {
   let body = wrapWithBlock(rewriteStatement(statement.body));
-  // If there's something in the test, add it to the end of the loop
 
+  // If there's something in the test, add it to the end of the loop
   let test = rewriteAndConcat(statement.test, body.body);
-  return {
-    ...BASE_NODE,
-    type: "DoWhileStatement",
-    body,
-    test,
-  };
+  return types.doWhileStatement(test, body);
 }
 
 function rewriteWhileStatement(
@@ -1008,12 +834,7 @@ function rewriteWhileStatement(
 
   return {
     preamble,
-    value: {
-      ...BASE_NODE,
-      type: "WhileStatement",
-      body,
-      test,
-    },
+    value: types.whileStatement(test, body),
   };
 }
 
@@ -1072,21 +893,11 @@ function rewriteVariableDeclaration(
       init = rewriteAndConcat(init, declarations);
     }
 
-    declarations.push({
-      ...BASE_NODE,
-      type: "VariableDeclaration",
-      kind: statement.kind,
-      declare: false,
-      declarations: [
-        {
-          ...BASE_NODE,
-          type: "VariableDeclarator",
-          id: declarator.id,
-          init,
-          definite: false,
-        },
-      ],
-    });
+    declarations.push(
+      types.variableDeclaration(statement.kind, [
+        types.variableDeclarator(declarator.id, declarator.init),
+      ])
+    );
   }
 
   return {
@@ -1122,16 +933,12 @@ export default function rewriteProgram(program: types.Program): types.Program {
   };
 }
 
-import * as fs from "fs";
-import { createUndefined, createNull } from "./create";
-
 let inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
 
 let { program } = parser.parse(inputCode);
 
-import * as uses from "./uses";
-
-console.log(uses.getIdentifiersStatementsUse(program.body));
+// import * as uses from "./uses";
+// console.log(uses.getIdentifiersStatementsUse(program.body));
 
 let refactored = rewriteProgram(program);
 

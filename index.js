@@ -20,29 +20,8 @@ var __spreadArrays = (this && this.__spreadArrays) || function () {
 exports.__esModule = true;
 var parser = require("@babel/parser");
 var generator_1 = require("@babel/generator");
+var types = require("@babel/types");
 var base_node_1 = require("./base_node");
-function fromVarToLet(statement) {
-    return __assign(__assign({}, base_node_1["default"]), { type: "VariableDeclaration", kind: "let", declarations: statement.declarations, declare: false });
-}
-function hoist(statements) {
-    var variableDeclarations = [];
-    var functionDeclarations = [];
-    var notHoisted = [];
-    for (var _i = 0, statements_1 = statements; _i < statements_1.length; _i++) {
-        var statement = statements_1[_i];
-        if (statement.type === "VariableDeclaration" && statement.kind === "var") {
-            // Convert "var" to "let"
-            variableDeclarations.push(fromVarToLet(statement));
-        }
-        else if (statement.type === "FunctionDeclaration") {
-            functionDeclarations.push(statement);
-        }
-        else {
-            notHoisted.push(statement);
-        }
-    }
-    return [].concat(variableDeclarations, functionDeclarations, notHoisted);
-}
 function rewriteNegatedUnaryNumericLiteral(literal) {
     if (literal.value === 0) {
         return __assign(__assign({}, base_node_1["default"]), { type: "BooleanLiteral", value: true });
@@ -70,7 +49,7 @@ function negateExpression(expression) {
     return __assign(__assign({}, base_node_1["default"]), { type: "UnaryExpression", operator: "!", prefix: false, argument: expression });
 }
 function rewriteConditionalExpressionStatement(expression) {
-    return createIfStatement(expression.test, toExpressionStatement(expression.consequent), toExpressionStatement(expression.alternate));
+    return createIfStatement(expression.test, convert_1.toExpressionStatement(expression.consequent), convert_1.toExpressionStatement(expression.alternate));
 }
 function rewriteAndReduce() {
     var expressions = [];
@@ -395,23 +374,19 @@ function rewriteExpression(expression) {
 }
 function rewriteLogicalExpressionAsIfStatement(expression) {
     if (expression.operator == "&&") {
-        return createIfStatement(expression.left, toExpressionStatement(expression.right), undefined);
+        return createIfStatement(expression.left, convert_1.toExpressionStatement(expression.right), undefined);
     }
     else if (expression.operator === "||") {
-        return createIfStatement(negateExpression(expression.left), toExpressionStatement(expression.right), undefined);
-        // TODO: Come back to this
+        return createIfStatement(negateExpression(expression.left), convert_1.toExpressionStatement(expression.right), undefined);
     }
     else if (expression.operator === "??") {
-        return createIfStatement(createBinaryExpression("!=", expression.left, create_1.createNull()), toExpressionStatement(expression.right), undefined);
+        return createIfStatement(createBinaryExpression("!=", expression.left, create_1.createNull()), convert_1.toExpressionStatement(expression.right), undefined);
     }
 }
 function createIfStatement(test, consequent, alternate) {
     return rewriteIfStatement(__assign(__assign({}, base_node_1["default"]), { type: "IfStatement", test: test,
         consequent: consequent,
         alternate: alternate }));
-}
-function toExpressionStatement(expression) {
-    return __assign(__assign({}, base_node_1["default"]), { type: "ExpressionStatement", expression: expression });
 }
 function rewriteSequenceExpression(sequence) {
     var expressions = sequence.expressions;
@@ -420,7 +395,7 @@ function rewriteSequenceExpression(sequence) {
     }
     else {
         var preambleExpressions = expressions.slice(0, expressions.length - 1);
-        var preambleStatements = preambleExpressions.map(toExpressionStatement);
+        var preambleStatements = preambleExpressions.map(convert_1.toExpressionStatement);
         var preamble = [];
         for (var _i = 0, preambleStatements_1 = preambleStatements; _i < preambleStatements_1.length; _i++) {
             var statement = preambleStatements_1[_i];
@@ -450,7 +425,7 @@ function rewriteExpressionStatement(statement) {
             var _a = rewriteExpression(expression), preamble = _a.preamble, value = _a.value;
             return {
                 preamble: preamble,
-                value: toExpressionStatement(value)
+                value: convert_1.toExpressionStatement(value)
             };
         }
     }
@@ -486,10 +461,10 @@ function rewriteForStatement(statement) {
     var test = statement.test;
     if (statement.init) {
         if (statement.init.type === "VariableDeclaration") {
-            var preamble_1 = rewriteVariableDeclaration(statement.init).preamble;
-            if (preamble_1.length > 0) {
-                init = preamble_1[preamble_1.length - 1];
-                preamble_1 = preamble_1.concat(preamble_1.slice(0, preamble_1.length - 1));
+            var preamble_ = rewriteVariableDeclaration(statement.init).preamble;
+            if (preamble_.length > 0) {
+                init = preamble_[preamble_.length - 1];
+                preamble = preamble.concat(preamble_.slice(0, preamble_.length - 1));
             }
         }
         else {
@@ -689,8 +664,8 @@ function rewriteVariableDeclaration(statement) {
 }
 function rewriteStatementArrayAsStatementArray(statements) {
     var statements_ = [];
-    for (var _i = 0, statements_2 = statements; _i < statements_2.length; _i++) {
-        var statement = statements_2[_i];
+    for (var _i = 0, statements_1 = statements; _i < statements_1.length; _i++) {
+        var statement = statements_1[_i];
         var _a = rewriteStatement(statement), preamble = _a.preamble, statement_ = _a.value;
         statements_ = statements_.concat(preamble);
         statements_.push(statement_);
@@ -698,7 +673,7 @@ function rewriteStatementArrayAsStatementArray(statements) {
     return statements_;
 }
 function rewriteScopedStatementBlock(statements) {
-    statements = hoist(statements);
+    statements = hoist_1["default"](statements);
     // statements = splitVariableDeclarations(statements);
     statements = rewriteStatementArrayAsStatementArray(statements);
     return statements;
@@ -711,8 +686,10 @@ var fs = require("fs");
 var create_1 = require("./create");
 var inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
 var program = parser.parse(inputCode).program;
-var uses = require("./uses");
-console.log(uses.getInitialValuesStatementsUse(program.body));
+var convert_1 = require("./convert");
+var hoist_1 = require("./hoist");
+// console.log(uses.getIdentifiersStatementsUse(program.body));
 var refactored = rewriteProgram(program);
 var code = generator_1["default"](refactored).code;
 fs.writeFileSync("out.js", code, { encoding: "utf8" });
+console.log(types.arrayExpression([]));

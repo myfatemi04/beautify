@@ -1,6 +1,6 @@
 "use strict";
 exports.__esModule = true;
-exports.getInitialValuesStatementsUse = exports.getIdentifiersExpressionUses = exports.getIdentifiersObjectPropertyUses = exports.getIdentifiersExpressionsUse = void 0;
+exports.getIdentifiersStatementsUse = exports.getIdentifiersStatementUses = exports.getIdentifiersExpressionUses = exports.getIdentifiersObjectPropertyUses = exports.getIdentifiersExpressionsUse = void 0;
 function getIdentifiersExpressionsUse(expressions) {
     var identifiers = expressions.map(function (element) {
         if (element.type !== "ArgumentPlaceholder") {
@@ -114,31 +114,24 @@ function getIdentifiersExpressionUses(expression) {
     return [];
 }
 exports.getIdentifiersExpressionUses = getIdentifiersExpressionUses;
-function getInitialValuesStatementsUse(statements) {
-    var gone = {};
-    var used = {};
-    for (var _i = 0, statements_1 = statements; _i < statements_1.length; _i++) {
-        var statement = statements_1[_i];
-        switch (statement.type) {
-            case "ExpressionStatement": {
-                var uses = getIdentifiersExpressionUses(statement.expression);
-                for (var _a = 0, uses_1 = uses; _a < uses_1.length; _a++) {
-                    var access = uses_1[_a];
-                    if (access.type === "get") {
-                        if (!gone[access.id.name]) {
-                            used[access.id.name] = true;
-                        }
-                    }
-                    else if (access.type === "set") {
-                        gone[access.id.name] = true;
-                    }
-                }
-            }
+function getIdentifiersStatementUses(statement) {
+    switch (statement.type) {
+        case "ExpressionStatement": {
+            return getIdentifiersExpressionUses(statement.expression);
+        }
+        case "BlockStatement": {
+            return getIdentifiersStatementsUse(statement.body);
+        }
+        case "IfStatement": {
+            return combine(getIdentifiersExpressionUses(statement.test), getIdentifiersStatementUses(statement.consequent), getIdentifiersStatementUses(statement.alternate));
         }
     }
-    return {
-        used: used,
-        gone: gone
-    };
+    return [];
 }
-exports.getInitialValuesStatementsUse = getInitialValuesStatementsUse;
+exports.getIdentifiersStatementUses = getIdentifiersStatementUses;
+function getIdentifiersStatementsUse(statements) {
+    return combine.apply(void 0, statements.map(function (statement) {
+        return getIdentifiersStatementUses(statement) || [];
+    }));
+}
+exports.getIdentifiersStatementsUse = getIdentifiersStatementsUse;
