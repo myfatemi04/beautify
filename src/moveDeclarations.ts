@@ -2,6 +2,7 @@ import * as types from "@babel/types";
 import * as uses from "./uses";
 import { Scope } from "./scope";
 import expressionHasSideEffects from "./expressionHasSideEffects";
+import { getAllIdentifiers } from "./getAllDeclaredIdentifiers";
 
 type CheckIfUsedOutsideFunction = (identifier: string) => boolean;
 type CheckIfDeclaredOutsideFunction = (identifier: string) => boolean;
@@ -67,8 +68,10 @@ export function traverseExpression(
               types.blockStatement(moveDeclarationsInward_(element.body.body))
             );
           } else if (element.type === "ObjectProperty") {
-            if (types.isPatternLike(element.value)) {
+            if (types.isPattern(element.value)) {
               throw new Error("Found pattern in Object Expression");
+            } else if (types.isRestElement(element.value)) {
+              throw new Error("Found RestElement in Object Expression");
             } else {
               return types.objectProperty(
                 traverseExpression_(element.key),
@@ -136,6 +139,7 @@ export function traverseExpression(
         traverseExpression_(expression.argument)
       );
 
+    case "NewExpression":
     case "CallExpression":
       return types.callExpression(
         // V8 intrinsic identifiers are just like identifiers
@@ -178,6 +182,16 @@ export function traverseExpression(
           expression.optional
         );
       }
+
+    case "UpdateExpression":
+      return types.updateExpression(
+        expression.operator,
+        traverseExpression_(expression.argument),
+        expression.prefix
+      );
+
+    case "ThisExpression":
+      return expression;
   }
 
   console.warn("traverseExpression() needs case", expression);
@@ -461,6 +475,114 @@ export function moveDeclarationsInward(
         } else {
           statementsUpdated.push(types.returnStatement());
         }
+        continue;
+
+      case "VariableDeclaration": {
+        statementsUpdated.push(
+          types.variableDeclaration(
+            "let",
+            statement.declarations.map((declarator) => {
+              for (let identifier of uses.getIdentifiersLValUses(
+                declarator.id
+              )) {
+                hasBeenDeclared[identifier.id.name] = true;
+              }
+
+              if (declarator.init) {
+                return types.variableDeclarator(
+                  declarator.id,
+                  traverseExpression_(declarator.init)
+                );
+              } else {
+                return declarator;
+              }
+            })
+          )
+        );
+
+        continue;
+      }
+
+      case "TryStatement":
+        statementsUpdated.push(statement);
+        continue;
+
+      case "SwitchStatement":
+        statementsUpdated.push(
+          types.switchStatement(
+            traverseExpression_(statement.discriminant),
+            statement.cases.map((case_) => {
+              return types.switchCase(
+                traverseExpression_(case_.test),
+                // TODO take care of case consequents being stupid mfs
+                // instead of a nice block statement
+                moveDeclarationsInward_(case_.consequent)
+              );
+            })
+          )
+        );
+
+      case "BreakStatement":
+      case "ContinueStatement":
+        statementsUpdated.push(statement);
+        continue;
+
+      case "ClassDeclaration":
+        statementsUpdated.push(
+          types.classDeclaration(
+            statement.id,
+            statement.superClass,
+            types.classBody(
+              statement.body.body.map((line) => {
+                if (
+                  line.type === "TSDeclareMethod" ||
+                  line.type === "TSIndexSignature"
+                ) {
+                  return line;
+                } else if (line.type === "ClassMethod") {
+                  return types.classMethod(
+                    line.kind,
+                    traverseExpression_(line.key),
+                    line.params,
+                    types.blockStatement(
+                      moveDeclarationsInward_(line.body.body)
+                    )
+                  );
+                } else if (line.type === "ClassPrivateMethod") {
+                  return types.classPrivateMethod(
+                    line.kind,
+                    line.key,
+                    line.params,
+                    types.blockStatement(
+                      moveDeclarationsInward_(line.body.body)
+                    )
+                  );
+                } else if (line.type === "ClassProperty") {
+                  return types.classProperty(
+                    traverseExpression_(line.key),
+                    line.value ? traverseExpression_(line.value) : undefined
+                  );
+                } else if (line.type === "ClassPrivateProperty") {
+                  return types.classPrivateProperty(
+                    line.key,
+                    traverseExpression_(line.value),
+                    line.decorators,
+                    line.static
+                  );
+                } else {
+                  throw new Error("Invalid class body line " + line);
+                }
+              })
+            ),
+            statement.decorators
+          )
+        );
+        continue;
+
+      case "ThrowStatement":
+        statementsUpdated.push(
+          types.throwStatement(traverseExpression_(statement.argument))
+        );
         continue;
     }
 

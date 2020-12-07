@@ -41,7 +41,7 @@ export function rewriteScopedStatementArray(
     Object.keys(scope.vars)
   );
 
-  // body = [...varDeclarations, ...body];
+  body = [...varDeclarations, ...body];
 
   return body;
 }
