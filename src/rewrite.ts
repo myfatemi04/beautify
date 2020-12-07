@@ -12,6 +12,7 @@ import { hoistAll, Scope } from "./scope";
 import { rewriteStatementArrayVarsAsAssignments } from "./rewriteVarAsAssignment";
 import createHoistedVariableDeclarations from "./createHoistedDeclarations";
 import hasSpecialCharacters from "./hasSpecialCharacters";
+import { moveDeclarationsInward } from "./moveDeclarations";
 
 export function beautifyNegatedNumericLiteral(
   literal: types.NumericLiteral
@@ -993,7 +994,10 @@ export function rewriteScopedStatementArray(
   let varDeclarations = createHoistedVariableDeclarations(
     Object.keys(scope.vars)
   );
-  body = [...varDeclarations, ...body];
 
-  return rewriteStatementArray(body, scope);
+  body = [...varDeclarations, ...body];
+  body = rewriteStatementArray(body, scope);
+  body = moveDeclarationsInward(body, scope);
+
+  return body;
 }

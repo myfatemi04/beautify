@@ -200,10 +200,72 @@ export function getIdentifiersStatementUses(
 export function getIdentifiersStatementsUse(
   statements: types.Statement[]
 ): IdentifierAccess[] {
-
   return combine(
-    ...statements.map(statement => {
+    ...statements.map((statement) => {
       return getIdentifiersStatementUses(statement) || [];
     })
   );
+}
+
+export function getIdentifiersVariableDeclarationUses(
+  declaration_: types.VariableDeclaration
+) {
+  let identifiers = [];
+  for (let declaration of declaration_.declarations) {
+    identifiers = combine(
+      identifiers,
+      getIdentifiersExpressionUses(declaration.init)
+    );
+  }
+
+  return identifiers;
+}
+
+export function getIdentifiersStatementUsesExternally(
+  statement: types.Statement
+): IdentifierAccess[] {
+  switch (statement.type) {
+    case "ExpressionStatement":
+      return getIdentifiersExpressionUses(statement.expression);
+
+    case "VariableDeclaration":
+      return getIdentifiersVariableDeclarationUses(statement);
+
+    case "IfStatement":
+      return getIdentifiersExpressionUses(statement.test);
+
+    case "ForInStatement":
+    case "ForOfStatement":
+      return getIdentifiersExpressionUses(statement.right);
+
+    case "ForStatement":
+      if (types.isVariableDeclaration(statement.init)) {
+        return combine(
+          getIdentifiersVariableDeclarationUses(statement.init),
+          getIdentifiersExpressionUses(statement.test)
+        )
+      } else {
+        return combine(
+          getIdentifiersExpressionUses(statement.init),
+          getIdentifiersExpressionUses(statement.test)
+        );
+      }
+
+    case "WhileStatement":
+    case "DoWhileStatement":
+      return getIdentifiersExpressionUses(statement.test);
+
+    case "SwitchStatement":
+      return getIdentifiersExpressionUses(statement.discriminant);
+
+    case "ThrowStatement":
+      return getIdentifiersExpressionUses(statement.argument);
+
+    case "LabeledStatement":
+    case "BlockStatement":
+    case "ClassDeclaration":
+    case "FunctionDeclaration":
+      return [];
+
+  }
 }
