@@ -11,6 +11,7 @@ import { hoistAll, Scope } from "./scope";
 
 import { rewriteStatementArrayVarsAsAssignments } from "./rewriteVarAsAssignment";
 import createHoistedVariableDeclarations from "./createHoistedDeclarations";
+import hasSpecialCharacters from "./hasSpecialCharacters";
 
 export function beautifyNegatedNumericLiteral(
   literal: types.NumericLiteral
@@ -113,17 +114,28 @@ export function rewriteCallExpression(
 export function rewriteAssignmentExpression(
   expression: types.AssignmentExpression,
   scope: Scope
-): Preambleable<types.AssignmentExpression> {
+): Preambleable<types.AssignmentExpression | types.UpdateExpression> {
+  let rightIsOne = false;
+  if (expression.right.type === "NumericLiteral") {
+    if (expression.right.value === 1) {
+      rightIsOne = true;
+    }
+  }
+
+  // replace "+= 1" with "++".
+  if (rightIsOne && types.isIdentifier(expression.left)) {
+    if (expression.operator === "+=") {
+      return addPreamble(types.updateExpression("++", expression.left, true));
+    } else if (expression.operator === "-=") {
+      return addPreamble(types.updateExpression("--", expression.left, true));
+    }
+  }
+
   let [preamble, [right]] = rewriteAndReduce(scope, expression.right);
 
   return {
     preamble,
-    value: {
-      // Assignment expression
-      ...expression,
-      // Only rewrite the right side
-      right: right,
-    },
+    value: types.assignmentExpression("=", expression.left, right),
   };
 }
 
@@ -229,10 +241,7 @@ export function rewriteArrayExpression(
 
   return {
     preamble,
-    value: {
-      ...expression,
-      elements: newElements,
-    },
+    value: types.arrayExpression(newElements),
   };
 }
 
@@ -300,12 +309,21 @@ export function rewriteMemberExpression(
     property = rewriteAndConcat(expression.property, scope, preamble);
   }
 
+  let computed = expression.computed;
+  // Rewrite things like a["b"] to a.b
+  if (property.type === "StringLiteral") {
+    if (!hasSpecialCharacters(property.value)) {
+      property = types.identifier(property.value);
+      computed = false;
+    }
+  }
+
   return {
     preamble,
     value: types.memberExpression(
       object,
       property,
-      expression.computed,
+      computed,
       expression.optional
     ),
   };
@@ -451,11 +469,7 @@ export function rewriteLogicalExpression(
   );
   return {
     preamble,
-    value: {
-      ...expression,
-      left,
-      right,
-    },
+    value: types.logicalExpression(expression.operator, left, right),
   };
 }
 
@@ -474,7 +488,7 @@ export function rewriteExpressionNoPreamble(
   if (types.isArrowFunctionExpression(expression)) {
     return rewriteArrowFunctionExpression(expression, scope);
   }
-  
+
   if (types.isFunctionExpression(expression)) {
     return rewriteFunctionExpression(expression, scope);
   }
@@ -604,10 +618,7 @@ export function rewriteSequenceExpression(
       value: expression,
     };
   } else {
-    return {
-      preamble: [],
-      value: sequence,
-    };
+    return addPreamble(sequence);
   }
 }
 
@@ -743,17 +754,14 @@ export function rewriteReturnStatement(
 export function rewriteFunctionDeclaration(
   declaration: types.FunctionDeclaration,
   scope: Scope
-): Preambleable<types.Statement> {
-  return {
-    preamble: [],
-    value: types.functionDeclaration(
-      declaration.id,
-      declaration.params,
-      types.blockStatement(
-        rewriteScopedStatementArray(declaration.body.body, scope)
-      )
-    ),
-  };
+): types.FunctionDeclaration {
+  return types.functionDeclaration(
+    declaration.id,
+    declaration.params,
+    types.blockStatement(
+      rewriteScopedStatementArray(declaration.body.body, scope)
+    )
+  );
 }
 
 export function rewriteSwitchCase(
@@ -896,7 +904,7 @@ export function rewriteStatement(
     case "IfStatement":
       return rewriteIfStatement(statement, scope);
     case "FunctionDeclaration":
-      return rewriteFunctionDeclaration(statement, scope);
+      return addPreamble(rewriteFunctionDeclaration(statement, scope));
     case "ReturnStatement":
       return rewriteReturnStatement(statement, scope);
     case "VariableDeclaration":
