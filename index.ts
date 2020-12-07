@@ -4,6 +4,8 @@ import * as types from "@babel/types";
 import * as fs from "fs";
 import hoist from "./hoist";
 import Preambleable from "./Preambleable";
+import { TypeAssertion } from "typescript";
+import ExpressionNoPreamble from "./ExpressionNoPreamble";
 
 function rewriteNegatedUnaryNumericLiteral(
   literal: types.NumericLiteral
@@ -270,15 +272,9 @@ function rewriteBinaryExpression(
   let preamble = [];
   let { left, right, operator } = expression;
 
-  if (left.type !== "PrivateName") {
-    let leftRewritten = rewriteExpression(left);
-    preamble = preamble.concat(leftRewritten.preamble);
-    left = leftRewritten.value;
-  }
+  if (left.type !== "PrivateName") left = rewriteAndConcat(left, preamble);
 
-  let rightRewritten = rewriteExpression(right);
-  preamble = preamble.concat(rightRewritten.preamble);
-  right = rightRewritten.value;
+  right = rewriteAndConcat(right, preamble);
 
   return {
     preamble,
@@ -311,6 +307,24 @@ function rewriteMemberExpression(
   };
 }
 
+function rewriteOptionalMemberExpression(
+  expression: types.OptionalMemberExpression
+): Preambleable<types.OptionalMemberExpression> {
+  let preamble = [];
+  let object = rewriteAndConcat(expression.object, preamble);
+  let property = rewriteAndConcat(expression.property, preamble);
+
+  return {
+    preamble,
+    value: types.optionalMemberExpression(
+      object,
+      property,
+      expression.computed,
+      expression.optional
+    ),
+  };
+}
+
 /**
  * When given an expression like A + B or A * B, rewrite both members.
  * @param expression Arithmetic expression to rewrite
@@ -319,11 +333,9 @@ function rewriteNewExpression(
   expression: types.NewExpression
 ): Preambleable<types.NewExpression> {
   let callee = expression.callee;
-  let preamble = [];
+  let preamble: types.Statement[] = [];
   if (callee.type !== "V8IntrinsicIdentifier") {
-    let rewrittenCallee = rewriteExpression(callee);
-    preamble = rewrittenCallee.preamble;
-    callee = rewrittenCallee.value;
+    callee = rewriteAndConcat(callee, preamble);
   }
 
   return {
@@ -382,35 +394,39 @@ function rewriteClassBody(expression_: types.ClassBody): types.ClassBody {
 function rewriteClassExpression(
   expression: types.ClassExpression
 ): types.ClassExpression {
-  return {
-    ...expression,
-    body: rewriteClassBody(expression.body),
-  };
+  return types.classExpression(
+    expression.id,
+    expression.superClass,
+    rewriteClassBody(expression.body),
+    expression.decorators
+  );
 }
 
 function rewriteClassDeclaration(
   expression: types.ClassDeclaration
 ): types.ClassDeclaration {
-  return {
-    ...expression,
-    body: rewriteClassBody(expression.body),
-  };
+  return types.classDeclaration(
+    expression.id,
+    expression.superClass,
+    rewriteClassBody(expression.body),
+    expression.decorators
+  );
 }
 
 function rewriteArrowFunctionExpression(
   expression: types.ArrowFunctionExpression
 ): types.ArrowFunctionExpression {
-  let newBody: types.BlockStatement | types.Expression;
-  if (expression.body.type === "BlockStatement") {
-    newBody = rewriteBlockStatement(expression.body);
+  if (types.isExpression(expression.body)) {
+    return types.arrowFunctionExpression(
+      expression.params,
+      rewriteExpression(expression.body).value
+    );
   } else {
-    newBody = rewriteExpression(expression.body).value;
+    return types.arrowFunctionExpression(
+      expression.params,
+      wrapWithBlock(rewriteStatement(expression.body))
+    );
   }
-
-  return {
-    ...expression,
-    body: newBody,
-  };
 }
 
 function rewriteLogicalExpression(
@@ -428,6 +444,30 @@ function rewriteLogicalExpression(
       right,
     },
   };
+}
+
+function rewriteExpressionNoPreamble(
+  expression: ExpressionNoPreamble
+): ExpressionNoPreamble {
+  if (types.isLiteral(expression)) {
+    return expression;
+  }
+
+  if (types.isClassExpression(expression)) {
+    return rewriteClassExpression(expression);
+  }
+
+  if (types.isArrowFunctionExpression(expression)) {
+    return rewriteArrowFunctionExpression(expression);
+  }
+
+  if (types.isUpdateExpression(expression)) {
+    return expression;
+  }
+
+  console.log("Unseen expression type:", expression.type);
+
+  return expression;
 }
 
 function rewriteExpression(
@@ -454,32 +494,17 @@ function rewriteExpression(
       return rewriteBinaryExpression(expression);
     case "MemberExpression":
       return rewriteMemberExpression(expression);
+    case "OptionalMemberExpression":
+      return rewriteOptionalMemberExpression(expression);
     case "NewExpression":
       return rewriteNewExpression(expression);
     case "LogicalExpression":
       return rewriteLogicalExpression(expression);
-    case "ClassExpression":
-      return addPreamble(rewriteClassExpression(expression));
-    case "ArrowFunctionExpression":
-      return addPreamble(rewriteArrowFunctionExpression(expression));
-    case "Identifier":
-    case "StringLiteral":
-    case "DecimalLiteral":
-    case "BigIntLiteral":
-    case "NumericLiteral":
-    case "BooleanLiteral":
-    case "NullLiteral":
-    case "ThisExpression":
-    case "RecordExpression":
-    case "RegExpLiteral":
-    case "UpdateExpression": // i++, i--, --i, ++i
-    case "Super":
-      return addPreamble(expression);
+    case "ParenthesizedExpression":
+      return rewriteExpression(expression.expression);
   }
 
-  console.log("Unseen expression type:", expression.type);
-
-  return addPreamble(expression);
+  return addPreamble(rewriteExpressionNoPreamble(expression));
 }
 
 function rewriteLogicalExpressionAsIfStatement(
@@ -571,21 +596,20 @@ function rewriteExpressionStatement(
 function wrapWithBlock(
   statement: Preambleable<types.Statement>
 ): types.BlockStatement {
-  if (statement.preamble.length > 0) {
-    return types.blockStatement([...statement.preamble, statement.value]);
+  let statementValue = statement.value ? [statement.value] : [];
+
+  // prevent wrapping BlockStatements in BlockStatements
+  if (statement.value && statement.value.type === "BlockStatement") {
+    return statement.value;
   } else {
-    if (!statement.value) {
-      return types.blockStatement([]);
-    } else if (statement.value.type === "BlockStatement") {
-      // prevent wrapping BlockStatements in BlockStatements
-      return statement.value;
-    } else {
-      return types.blockStatement([statement.value]);
-    }
+    return types.blockStatement([...statement.preamble, ...statementValue]);
   }
 }
 
-function rewriteAndConcat(expression: types.Expression, preamble = []) {
+function rewriteAndConcat(
+  expression: types.Expression,
+  preamble: types.Statement[] = []
+) {
   let { preamble: pre, value } = rewriteExpression(expression);
   preamble.push(...pre);
   return value;
@@ -879,7 +903,10 @@ function rewriteStatementArrayAsStatementArray(statements: types.Statement[]) {
     let { preamble, value: statement_ } = rewriteStatement(statement);
 
     statements_ = statements_.concat(preamble);
-    statements_.push(statement_);
+
+    if (statement_) {
+      statements_.push(statement_);
+    }
   }
 
   return statements_;
@@ -887,7 +914,6 @@ function rewriteStatementArrayAsStatementArray(statements: types.Statement[]) {
 
 function rewriteScopedStatementBlock(statements: types.Statement[]) {
   statements = hoist(statements);
-  // statements = splitVariableDeclarations(statements);
   statements = rewriteStatementArrayAsStatementArray(statements);
 
   return statements;
@@ -903,9 +929,6 @@ export default function rewriteProgram(program: types.Program): types.Program {
 let inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
 
 let { program } = parser.parse(inputCode);
-
-let refactored = rewriteProgram(program);
-
-let { code } = generate(refactored);
+let { code } = generate(rewriteProgram(program));
 
 fs.writeFileSync("out.js", code, { encoding: "utf8" });
