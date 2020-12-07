@@ -1,43 +1,17 @@
-import * as parser from "@babel/parser";
-import generate from "@babel/generator";
-import * as types from "@babel/types";
 import * as fs from "fs";
+import * as parser from "@babel/parser";
+import * as types from "@babel/types";
+
+import generate from "@babel/generator";
+
 import hoist from "./hoist";
-import Preambleable from "./Preambleable";
-import { TypeAssertion } from "typescript";
-import ExpressionNoPreamble from "./ExpressionNoPreamble";
+import Preambleable, { addPreamble, ExpressionNoPreamble } from "./Preambleable";
+import negateExpression from "./negate";
 
 function rewriteNegatedUnaryNumericLiteral(
   literal: types.NumericLiteral
 ): types.BooleanLiteral {
   return types.booleanLiteral(literal.value === 0);
-}
-
-function negateExpression(expression: types.Expression): types.Expression {
-  switch (expression.type) {
-    case "LogicalExpression":
-      if (expression.operator === "&&") {
-        return types.logicalExpression(
-          "||",
-          negateExpression(expression.left),
-          negateExpression(expression.right)
-        );
-      } else if (expression.operator === "||") {
-        return types.logicalExpression(
-          "&&",
-          negateExpression(expression.left),
-          negateExpression(expression.right)
-        );
-      }
-    case "UnaryExpression":
-      if (expression.operator === "!") {
-        // If a negated expression, un-negate the expression
-        return expression.argument;
-      }
-  }
-
-  // Return a regular negated expression
-  return types.unaryExpression("!", expression);
 }
 
 function rewriteConditionalExpressionStatement(
@@ -56,19 +30,10 @@ function rewriteAndReduce(
   let preamble = [];
   let members = [];
   for (let expression of expressions) {
-    let rewritten = rewriteExpression(expression);
-    preamble = preamble.concat(rewritten.preamble);
-    members.push(rewritten.value);
+    members.push(rewriteAndConcat(expression, preamble));
   }
 
   return [preamble, members];
-}
-
-function addPreamble<T>(value: T): Preambleable<T> {
-  return {
-    preamble: [],
-    value,
-  };
 }
 
 function rewriteNegatedUnaryExpressionArgument(
@@ -543,13 +508,12 @@ function rewriteSequenceExpression(
   sequence: types.SequenceExpression
 ): Preambleable<types.SequenceExpression | types.Expression> {
   let expressions = sequence.expressions;
-  if (expressions.length === 1) {
-    return rewriteExpression(expressions[0]);
-  } else {
+  if (expressions.length > 0) {
     let preambleExpressions = expressions.slice(0, expressions.length - 1);
     let preambleStatements: types.ExpressionStatement[] = preambleExpressions.map(
       (expression) => types.expressionStatement(expression)
     );
+    
     let preamble: types.Statement[] = [];
     for (let statement of preambleStatements) {
       let {

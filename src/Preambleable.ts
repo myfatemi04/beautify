@@ -1,6 +1,18 @@
 import * as types from "@babel/types";
 
-type ExpressionNoPreamble =
+export default interface Preambleable<T> {
+  preamble: types.Statement[];
+  value: T;
+}
+
+export function addPreamble<T>(value: T): Preambleable<T> {
+  return {
+    preamble: [],
+    value,
+  };
+}
+
+export type ExpressionNoPreamble =
   | types.ArrowFunctionExpression
   | types.AwaitExpression
   | types.BindExpression
@@ -25,5 +37,3 @@ type ExpressionNoPreamble =
   | types.TypeCastExpression
   | types.UpdateExpression
   | types.YieldExpression;
-
-export default ExpressionNoPreamble;
