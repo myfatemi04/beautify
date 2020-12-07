@@ -1,4 +1,5 @@
 import * as types from "@babel/types";
+import { createLogicalAnd } from "typescript";
 import { FunctionParam } from "./params";
 
 /*
@@ -159,6 +160,7 @@ export function getIdentifiersExpressionUses(
     case "CallExpression":
     case "NewExpression": {
       // callee before arguments
+
       let identifiers = combine(
         getIdentifiersExpressionUses(expression.callee),
         getIdentifiersExpressionsUse(expression.arguments)
@@ -371,6 +373,31 @@ export function getIdentifiersCatchClauseUses(
   return identifiers;
 }
 
+export function getIdentifiersClassMethodUses(
+  method: types.ClassMethod | types.ClassPrivateMethod
+): IdentifierAccess[] {
+  let identifiers: IdentifierAccess[] = [];
+
+  for (let param of method.params) {
+    if (types.isPatternLike(param)) {
+      identifiers.push(...getIdentifiersPatternLikeUses(param));
+    } else if (param.type === "TSParameterProperty") {
+      // TS Parameter [e.g. constructor(private a: string)]
+      // The param can be an identifier or assignment pattern and is treated
+      // like it were a regular function parameter.
+      if (types.isIdentifier(param)) {
+        identifiers.push({ type: "set", id: param });
+      } else if (types.isAssignmentPattern(param)) {
+        identifiers.push(...getIdentifiersAssignmentPatternUses(param));
+      } else {
+        throw new Error("Invalid TS Parameter Property: " + param);
+      }
+    }
+  }
+
+  return identifiers;
+}
+
 export function getIdentifiersStatementUses(
   statement: types.Statement | types.CatchClause
 ): IdentifierAccess[] {
@@ -453,6 +480,47 @@ export function getIdentifiersStatementUses(
       return identifiers;
     }
 
+    case "WhileStatement":
+    case "DoWhileStatement": {
+      return combine(
+        getIdentifiersExpressionUses(statement.test),
+        getIdentifiersStatementUses(statement.body)
+      );
+    }
+
+    case "ClassDeclaration":
+      return combine(
+        statement.superClass
+          ? getIdentifiersExpressionUses(statement.superClass)
+          : [],
+        ...statement.body.body.map((line) => {
+          if (
+            line.type === "TSDeclareMethod" ||
+            line.type === "TSIndexSignature"
+          ) {
+            return [];
+          } else if (line.type === "ClassMethod") {
+            return getIdentifiersClassMethodUses(line);
+          } else if (line.type === "ClassPrivateMethod") {
+            return getIdentifiersClassMethodUses(line);
+          } else if (line.type === "ClassProperty") {
+            if (line.value) {
+              return getIdentifiersExpressionUses(line.value);
+            } else {
+              return [];
+            }
+          } else if (line.type === "ClassPrivateProperty") {
+            if (line.value) {
+              return getIdentifiersExpressionUses(line.value);
+            } else {
+              return [];
+            }
+          } else {
+            throw new Error("Invalid class body line " + line);
+          }
+        })
+      );
+
     case "ReturnStatement":
       if (statement.argument) {
         return getIdentifiersExpressionUses(statement.argument);
@@ -524,6 +592,8 @@ export function getIdentifiersVariableDeclarationUses(
   return identifiers;
 }
 
+/*
+
 export function getIdentifiersStatementUsesExternally(
   statement: types.Statement
 ): IdentifierAccess[] {
@@ -590,3 +660,5 @@ export function getIdentifiersStatementUsesExternally(
 
   return [];
 }
+
+*/

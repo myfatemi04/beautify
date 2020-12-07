@@ -2,7 +2,6 @@ import * as types from "@babel/types";
 import * as uses from "./uses";
 import { Scope } from "./scope";
 import expressionHasSideEffects from "./expressionHasSideEffects";
-import { getAllIdentifiers } from "./getAllDeclaredIdentifiers";
 
 type CheckIfUsedOutsideFunction = (identifier: string) => boolean;
 type CheckIfDeclaredOutsideFunction = (identifier: string) => boolean;
@@ -213,7 +212,7 @@ export function moveDeclarationsInward(
 
   const checkIfUsedInside = (name: string) => {
     for (let statement of statements) {
-      let externalUses = uses.getIdentifiersStatementUsesExternally(statement);
+      let externalUses = uses.getIdentifiersStatementUses(statement);
 
       for (let use of externalUses) {
         if (use.id.name === name) {
@@ -234,7 +233,7 @@ export function moveDeclarationsInward(
 
   const checkIfUpdatedInside = (name: string) => {
     for (let statement of statements) {
-      let externalUses = uses.getIdentifiersStatementUsesExternally(statement);
+      let externalUses = uses.getIdentifiersStatementUses(statement);
 
       for (let use of externalUses) {
         if (use.id.name === name) {
@@ -513,7 +512,7 @@ export function moveDeclarationsInward(
             traverseExpression_(statement.discriminant),
             statement.cases.map((case_) => {
               return types.switchCase(
-                traverseExpression_(case_.test),
+                case_.test ? traverseExpression_(case_.test) : case_.test,
                 // TODO take care of case consequents being stupid mfs
                 // instead of a nice block statement
                 moveDeclarationsInward_(case_.consequent)
@@ -521,6 +520,8 @@ export function moveDeclarationsInward(
             })
           )
         );
+
+        continue;
 
       case "BreakStatement":
       case "ContinueStatement":
@@ -531,7 +532,9 @@ export function moveDeclarationsInward(
         statementsUpdated.push(
           types.classDeclaration(
             statement.id,
-            statement.superClass,
+            statement.superClass
+              ? traverseExpression_(statement.superClass)
+              : statement.superClass,
             types.classBody(
               statement.body.body.map((line) => {
                 if (
