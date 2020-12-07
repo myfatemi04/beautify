@@ -12,6 +12,7 @@ export function rewriteSequenceExpressionStatement(
   if (expressions.length > 0) {
     let preambleExpressions = expressions.slice(0, expressions.length - 1);
     let preamble: types.Statement[] = [];
+
     for (let expression of preambleExpressions) {
       let {
         preamble: preamble_,
@@ -37,6 +38,56 @@ export function rewriteSequenceExpressionStatement(
     return {
       preamble,
       value: rewrittenExpressionStatement.value,
+    };
+  } else {
+    return {
+      preamble: [],
+      value: undefined,
+    };
+  }
+}
+
+/**
+ * If something like (a, b = c, d(), f) is encountered, it turns the
+ * preceeding expressions to ExpressionStatements, and the last to an
+ * expression.
+ * @param sequence The sequence expression
+ * @param scope The scope
+ */
+export function rewriteSequenceExpressionUseLastValue(
+  sequence: types.SequenceExpression,
+  scope: Scope
+): Preambleable<types.Expression> {
+  let expressions = sequence.expressions;
+  if (expressions.length > 0) {
+    let preambleExpressions = expressions.slice(0, expressions.length - 1);
+    let preamble: types.Statement[] = [];
+
+    for (let expression of preambleExpressions) {
+      let {
+        preamble: preamble_,
+        value: expressionStatement,
+      } = rewriteExpressionStatement(
+        types.expressionStatement(expression),
+        scope
+      );
+
+      preamble = preamble.concat(preamble_);
+
+      if (expressionStatement) {
+        preamble.push(expressionStatement);
+      }
+    }
+
+    let rewrittenExpression = rewriteExpression(
+      expressions[expressions.length - 1],
+      scope
+    );
+    preamble = preamble.concat(rewrittenExpression.preamble);
+
+    return {
+      preamble,
+      value: rewrittenExpression.value,
     };
   } else {
     return {

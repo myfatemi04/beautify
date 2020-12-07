@@ -7,6 +7,184 @@ type CheckIfUsedOutsideFunction = (identifier: string) => boolean;
 type CheckIfDeclaredOutsideFunction = (identifier: string) => boolean;
 type CheckIfUpdatedOutsideFunction = (identifier: string) => boolean;
 
+/**
+ * Looks for arrow functions and function declarations
+ */
+export function traverseExpression(
+  expression: types.Expression,
+  scope: Scope,
+  isUsedOutside: CheckIfUsedOutsideFunction = () => false,
+  isDeclaredOutside: CheckIfDeclaredOutsideFunction = () => false,
+  isUpdatedOutside: CheckIfUpdatedOutsideFunction = () => false
+): types.Expression {
+  if (types.isIdentifier(expression)) {
+    return expression;
+  }
+
+  if (types.isLiteral(expression)) {
+    return expression;
+  }
+
+  const traverseExpression_ = (expression: types.Expression) => {
+    return traverseExpression(
+      expression,
+      scope,
+      isUsedOutside,
+      isDeclaredOutside,
+      isUpdatedOutside
+    );
+  };
+
+  const moveDeclarationsInward_ = (statements: types.Statement[]) => {
+    return moveDeclarationsInward(
+      statements,
+      scope,
+      isUsedOutside,
+      isDeclaredOutside,
+      isUpdatedOutside
+    );
+  };
+
+  switch (expression.type) {
+    case "ArrayExpression":
+      return types.arrayExpression(
+        expression.elements.map((element) => {
+          if (element.type === "SpreadElement") {
+            return element;
+          }
+
+          return traverseExpression_(element);
+        })
+      );
+    case "ObjectExpression":
+      return types.objectExpression(
+        expression.properties.map((element) => {
+          if (element.type === "ObjectMethod") {
+            return types.objectMethod(
+              element.kind,
+              element.key,
+              element.params,
+              types.blockStatement(moveDeclarationsInward_(element.body.body))
+            );
+          } else if (element.type === "ObjectProperty") {
+            if (types.isPatternLike(element.value)) {
+              throw new Error("Found pattern in Object Expression");
+            } else {
+              return types.objectProperty(
+                traverseExpression_(element.key),
+                traverseExpression_(element.value)
+              );
+            }
+          } else if (element.type === "SpreadElement") {
+            return element;
+          } else {
+            throw new Error("Invalid Object Property " + element);
+          }
+        })
+      );
+    case "AssignmentExpression":
+      return types.assignmentExpression(
+        expression.operator,
+        expression.left,
+        traverseExpression_(expression.right)
+      );
+
+    case "BinaryExpression":
+      if (types.isPrivateName(expression.left)) {
+        return types.binaryExpression(
+          expression.operator,
+          expression.left,
+          traverseExpression_(expression.right)
+        );
+      } else {
+        return types.binaryExpression(
+          expression.operator,
+          traverseExpression_(expression.left),
+          traverseExpression_(expression.right)
+        );
+      }
+    case "LogicalExpression":
+      return types.logicalExpression(
+        expression.operator,
+        traverseExpression_(expression.left),
+        traverseExpression_(expression.right)
+      );
+
+    case "ArrowFunctionExpression":
+      if (types.isExpression(expression.body)) {
+        return types.arrowFunctionExpression(
+          expression.params,
+          traverseExpression_(expression.body)
+        );
+      } else {
+        return types.arrowFunctionExpression(
+          expression.params,
+          types.blockStatement(moveDeclarationsInward_(expression.body.body))
+        );
+      }
+
+    case "FunctionExpression":
+      return types.functionExpression(
+        expression.id,
+        expression.params,
+        types.blockStatement(moveDeclarationsInward_(expression.body.body))
+      );
+
+    case "UnaryExpression":
+      return types.unaryExpression(
+        expression.operator,
+        traverseExpression_(expression.argument)
+      );
+
+    case "CallExpression":
+      return types.callExpression(
+        // V8 intrinsic identifiers are just like identifiers
+        types.isV8IntrinsicIdentifier(expression.callee)
+          ? expression.callee
+          : traverseExpression_(expression.callee),
+        expression.arguments.map((argument) => {
+          if (types.isSpreadElement(argument)) {
+            return argument;
+          } else if (types.isJSXNamespacedName(argument)) {
+            return argument;
+          } else if (types.isArgumentPlaceholder(argument)) {
+            return argument;
+          } else {
+            return traverseExpression_(argument);
+          }
+        })
+      );
+
+    case "ConditionalExpression":
+      return types.conditionalExpression(
+        traverseExpression_(expression.test),
+        traverseExpression_(expression.consequent),
+        traverseExpression_(expression.alternate)
+      );
+
+    case "MemberExpression":
+      if (types.isPrivateName(expression.property)) {
+        return types.memberExpression(
+          traverseExpression_(expression.object),
+          expression.property,
+          expression.computed,
+          expression.optional
+        );
+      } else {
+        return types.memberExpression(
+          traverseExpression_(expression.object),
+          traverseExpression_(expression.property),
+          expression.computed,
+          expression.optional
+        );
+      }
+  }
+
+  console.warn("traverseExpression() needs case", expression);
+
+  return expression;
+}
+
 export function moveDeclarationsInward(
   statements: types.Statement[],
   scope: Scope,
@@ -73,6 +251,16 @@ export function moveDeclarationsInward(
       checkIfUsedLater,
       checkIfDeclaredOutside,
       checkIfUpdatedLater
+    );
+  };
+
+  const traverseExpression_ = (expression: types.Expression) => {
+    return traverseExpression(
+      expression,
+      scope,
+      isUsedOutside,
+      isDeclaredOutside,
+      isUpdatedOutside
     );
   };
 
@@ -259,10 +447,24 @@ export function moveDeclarationsInward(
           );
         }
 
-        statementsUpdated.push(types.ifStatement(test, consequent, alternate));
+        statementsUpdated.push(
+          types.ifStatement(traverseExpression_(test), consequent, alternate)
+        );
         continue;
       }
+
+      case "ReturnStatement":
+        if (statement.argument) {
+          statementsUpdated.push(
+            types.returnStatement(traverseExpression_(statement.argument))
+          );
+        } else {
+          statementsUpdated.push(types.returnStatement());
+        }
+        continue;
     }
+
+    console.log("reached end with statement", statement);
 
     statementsUpdated.push(statement);
   }

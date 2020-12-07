@@ -22,7 +22,31 @@ export default function negateExpression(
       if (expression.operator === "!") {
         // If a negated expression, un-negate the expression
         return expression.argument;
+      } else {
+        break;
       }
+    case "BinaryExpression": {
+      let changes = {
+        ["!="]: "==",
+        ["!=="]: "==",
+        ["=="]: "!=",
+        ["==="]: "!==",
+        [">="]: "<=",
+        [">"]: "<",
+        ["<="]: ">=",
+        ["<"]: ">",
+      };
+
+      if (expression.operator in changes) {
+        return types.binaryExpression(
+          changes[expression.operator],
+          expression.left,
+          expression.right
+        );
+      }
+
+      break;
+    }
   }
 
   // Return a regular negated expression

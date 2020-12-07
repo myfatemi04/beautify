@@ -1,7 +1,12 @@
 import * as types from "@babel/types";
-import expressionHasSideEffects from "./expressionHasSideEffects";
-import getRootNodeOfMemberExpression from "./getRootNodeOfMemberExpression";
 import { FunctionParam } from "./params";
+
+/*
+
+This file takes care of knowing if an identifier's initial value has been used or not.
+It takes care of patterns (object destructuring), default values in functions, function parameters, function bodies...
+
+*/
 
 type IdentifierAccess =
   | {
@@ -32,39 +37,82 @@ export function getIdentifiersExpressionsUse(
   return combine(...identifiers);
 }
 
+export function getIdentifiersPatternUses(
+  pattern: types.Pattern
+): IdentifierAccess[] {
+  if (pattern.type === "ArrayPattern") {
+    return getIdentifiersArrayPatternUses(pattern);
+  } else if (pattern.type === "ObjectPattern") {
+    return getIdentifiersObjectPatternUses(pattern);
+  } else if (pattern.type === "AssignmentPattern") {
+    return getIdentifiersAssignmentPatternUses(pattern);
+  } else {
+    throw new Error("Unexpected pattern:" + pattern);
+  }
+}
+
+export function getIdentifiersPatternLikeUses(
+  patternLike: types.PatternLike
+): IdentifierAccess[] {
+  if (patternLike.type === "RestElement") {
+    return getIdentifiersLValUses(patternLike.argument);
+  } else if (patternLike.type === "Identifier") {
+    return [{ type: "set", id: patternLike }];
+  } else {
+    return getIdentifiersPatternUses(patternLike);
+  }
+}
+
 export function getIdentifiersObjectPropertyUses(
   property: types.ObjectProperty
 ): IdentifierAccess[] {
   // "computed" is for things like { [a]: b }
   // if it's not computed, don't mistakenly call it an identifier
-  if (!property.computed) {
-    return getIdentifiersExpressionUses(property.value);
-  } else {
-    return combine(
-      getIdentifiersExpressionUses(property.key),
-      getIdentifiersExpressionUses(property.value)
-    );
+  let identifiers: IdentifierAccess[] = [];
+  if (property.computed) {
+    identifiers.push(...getIdentifiersExpressionUses(property.key));
   }
+
+  if (types.isPatternLike(property.value)) {
+    identifiers.push(...getIdentifiersPatternLikeUses(property.value));
+  } else {
+    identifiers.push(...getIdentifiersExpressionUses(property.value));
+  }
+
+  return identifiers;
 }
 
 function combine(...infos: IdentifierAccess[][]): IdentifierAccess[] {
   return [].concat(...infos);
 }
 
-export function getIdentifiersParametersUses(
-  expression: types.TypeParameter
+export function getIdentifiersPrivateNameUses(
+  expression: types.PrivateName
 ): IdentifierAccess[] {
-  return [];
+  return [{ type: "set", id: expression.id }];
+}
+
+export function getIdentifiersMemberExpressionUses(
+  expression: types.MemberExpression
+): IdentifierAccess[] {
+  let identifiers: IdentifierAccess[] = [];
+  identifiers.push(...getIdentifiersExpressionUses(expression.object));
+
+  if (types.isPrivateName(expression.property)) {
+    identifiers.push(...getIdentifiersPrivateNameUses(expression.property));
+  } else {
+    identifiers.push(...getIdentifiersExpressionUses(expression.property));
+  }
+
+  return identifiers;
 }
 
 export function getIdentifiersExpressionUses(
   expression:
     | types.Expression
     | types.SpreadElement
-    | types.PrivateName
     | types.V8IntrinsicIdentifier
     | types.JSXNamespacedName
-    | types.PatternLike
 ): IdentifierAccess[] {
   switch (expression.type) {
     case "SpreadElement":
@@ -95,20 +143,29 @@ export function getIdentifiersExpressionUses(
       );
 
     case "BinaryExpression":
-    case "LogicalExpression":
-      // left before right
-      return combine(
-        getIdentifiersExpressionUses(expression.left),
-        getIdentifiersExpressionUses(expression.right)
-      );
+    case "LogicalExpression": {
+      let identifiers = [];
+      if (types.isPrivateName(expression.left)) {
+        identifiers.push(...getIdentifiersPrivateNameUses(expression.left));
+      } else {
+        identifiers.push(...getIdentifiersExpressionUses(expression.left));
+      }
+
+      identifiers.push(...getIdentifiersExpressionUses(expression.right));
+
+      return identifiers;
+    }
 
     case "CallExpression":
-    case "NewExpression":
+    case "NewExpression": {
       // callee before arguments
-      return combine(
+      let identifiers = combine(
         getIdentifiersExpressionUses(expression.callee),
         getIdentifiersExpressionsUse(expression.arguments)
       );
+
+      return identifiers;
+    }
 
     case "ArrayExpression":
       return getIdentifiersExpressionsUse(
@@ -135,53 +192,15 @@ export function getIdentifiersExpressionUses(
     }
 
     case "AssignmentExpression": {
-      let lhs = expression.left;
+      // Get all identifiers of the left hand side.
       let identifiers: IdentifierAccess[] = [];
-      if (lhs.type === "Identifier") {
-        identifiers.push({ type: "set", id: lhs });
-      } else if (lhs.type === "MemberExpression") {
-        let object = getRootNodeOfMemberExpression(lhs.object);
-        if (object.type === "Identifier") {
-          identifiers.push({ type: "get", id: object });
-        }
-      }
-      return combine(
-        identifiers,
-        getIdentifiersExpressionUses(expression.right)
-      );
+      identifiers.push(...getIdentifiersLValUses(expression.left));
+      identifiers.push(...getIdentifiersExpressionUses(expression.right));
+      return identifiers;
     }
 
-    case "ArrayPattern":
-      return combine(
-        ...expression.elements.map((element) =>
-          getIdentifiersExpressionUses(element)
-        )
-      );
-
-    case "ObjectPattern":
-      return [];
-
-    case "AssignmentPattern": {
-      return combine(
-        getIdentifiersExpressionUses(expression.left),
-        getIdentifiersExpressionUses(expression.right)
-      );
-    }
-
-    case "MemberExpression": {
-      return combine(
-        getIdentifiersExpressionUses(expression.object),
-        getIdentifiersExpressionUses(expression.property)
-      );
-    }
-
-    case "RestElement": {
-      if (expression.argument.type === "TSParameterProperty") {
-        return [];
-      } else {
-        return getIdentifiersExpressionUses(expression.argument);
-      }
-    }
+    case "MemberExpression":
+      return getIdentifiersMemberExpressionUses(expression);
 
     case "BooleanLiteral":
     case "StringLiteral":
@@ -196,17 +215,17 @@ export function getIdentifiersExpressionUses(
     case "ArrowFunctionExpression":
     case "FunctionExpression": {
       // TODO make this better-suited for scope changes
-      let bodyIdentifiers: IdentifierAccess[] = [];
+      let identifiers: IdentifierAccess[] = [];
+
+      identifiers.push(...getIdentifiersFunctionParamsUse(expression.params));
+
       if (types.isExpression(expression.body)) {
-        bodyIdentifiers.push(...getIdentifiersExpressionUses(expression.body));
+        identifiers.push(...getIdentifiersExpressionUses(expression.body));
       } else if (types.isStatement(expression.body)) {
-        bodyIdentifiers.push(...getIdentifiersStatementUses(expression.body));
+        identifiers.push(...getIdentifiersStatementUses(expression.body));
       }
 
-      return combine(
-        getIdentifiersFunctionParamsUse(expression.params),
-        bodyIdentifiers
-      );
+      return identifiers;
     }
   }
 
@@ -219,11 +238,30 @@ export function getIdentifiersFunctionParamsUse(
   params: FunctionParam[]
 ): IdentifierAccess[] {
   let identifiers: IdentifierAccess[] = [];
+
   for (let param of params) {
-    if (param.type === "Identifier") {
+    if (types.isPattern(param)) {
+      // Pattern-like: all of the identifiers area "set"
+      identifiers.push(...getIdentifiersPatternUses(param));
+    } else if (types.isIdentifier(param)) {
+      // Identifier: this identifier is "set" (instantiated from the function)
       identifiers.push({ type: "set", id: param });
+    } else if (types.isRestElement(param)) {
+      // Rest element: whatever content in the Rest Element is "set"
+      identifiers.push(...getIdentifiersRestElementUses(param));
+    } else if (types.isTSParameterProperty(param)) {
+      // TS Parameter [e.g. constructor(private a: string)]
+      // The param can be an identifier or assignment pattern and is treated
+      // like it were a regular function parameter.
+      if (types.isIdentifier(param)) {
+        identifiers.push({ type: "set", id: param });
+      } else if (types.isAssignmentPattern(param)) {
+        identifiers.push(...getIdentifiersAssignmentPatternUses(param));
+      } else {
+        throw new Error("Invalid TS Parameter Property: " + param);
+      }
     } else {
-      identifiers.push(...getIdentifiersLValUses(param));
+      throw new Error("Invalid function parameter: " + param);
     }
   }
 
@@ -236,41 +274,45 @@ export function getIdentifiersRestElementUses(
   return getIdentifiersLValUses(element.argument);
 }
 
+/**
+ * Takes the right side, says it is being used as a default value.
+ * Takes the left side, says it is being updated.
+ * @param pattern Things like: constructor(a = b): This is like a default value
+ */
 export function getIdentifiersAssignmentPatternUses(
   pattern: types.AssignmentPattern
 ): IdentifierAccess[] {
   let identifiers: IdentifierAccess[] = [];
-  if (!types.isMemberExpression(pattern.left)) {
-    let touches = getIdentifiersLValUses(pattern.left);
-    for (let { id } of touches) {
-      identifiers.push({ type: "set", id });
-    }
-  }
 
+  // the left value: we are setting any identifiers found here
+  identifiers.push(...getIdentifiersLValUses(pattern.left));
+
+  // the default value: we are using any identifiers found here
   identifiers.push(...getIdentifiersExpressionUses(pattern.right));
 
   return identifiers;
 }
 
+/**
+ * Says any identifiers being assigned to here are "set"
+ * @param lval The left side of an assignment
+ */
 export function getIdentifiersLValUses(lval: types.LVal): IdentifierAccess[] {
-  if (lval.type === "Identifier") {
-    return [{ type: "get", id: lval }];
-  } else if (lval.type === "ArrayPattern") {
-    return getIdentifiersArrayPatternUses(lval);
-  } else if (lval.type === "RestElement") {
-    return getIdentifiersRestElementUses(lval);
-  } else if (lval.type === "ObjectPattern") {
-    return getIdentifiersObjectPatternUses(lval);
+  if (types.isPatternLike(lval)) {
+    return getIdentifiersPatternLikeUses(lval);
   } else if (lval.type === "MemberExpression") {
     return getIdentifiersExpressionUses(lval);
-  } else if (lval.type === "AssignmentPattern") {
-    return getIdentifiersAssignmentPatternUses(lval);
   } else if (lval.type === "TSParameterProperty") {
     return getIdentifiersLValUses(lval.parameter);
   } else {
     throw new Error("Invalid lval type for lval" + JSON.stringify(lval));
   }
 }
+
+/*
+ * PATTERNS
+ * These are the object destructuring things. Any identifiers found here are "set".
+ */
 
 export function getIdentifiersArrayPatternUses(
   pattern: types.ArrayPattern
@@ -284,7 +326,6 @@ export function getIdentifiersArrayPatternUses(
   return identifiers;
 }
 
-// TODO make these all really robust
 export function getIdentifiersObjectPatternUses(
   pattern: types.ObjectPattern
 ): IdentifierAccess[] {
@@ -292,11 +333,13 @@ export function getIdentifiersObjectPatternUses(
 
   for (let property of pattern.properties) {
     if (property.type === "ObjectProperty") {
-      if (types.isPattern(property.value)) {
-        identifiers.push(...getIdentifiersLValUses(property.value));
+      if (types.isPatternLike(property.value)) {
+        identifiers.push(...getIdentifiersPatternLikeUses(property.value));
       } else {
         identifiers.push(...getIdentifiersExpressionUses(property.value));
       }
+    } else if (property.type === "RestElement") {
+      identifiers.push(...getIdentifiersRestElementUses(property));
     }
   }
 
@@ -528,6 +571,12 @@ export function getIdentifiersStatementUsesExternally(
       return [];
 
     case "ReturnStatement":
+      if (statement.argument) {
+        return getIdentifiersExpressionUses(statement.argument);
+      } else {
+        return [];
+      }
+
     case "BreakStatement":
     case "ContinueStatement":
     case "ClassDeclaration":
