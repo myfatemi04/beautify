@@ -1,7 +1,8 @@
 {
 	"compilerOptions": {
 		"lib": ["ESNext"],
-		"outDir": "dist/"
+		"outDir": "dist/",
+		"noImplicitReturns": true
 	},
 	"exclude": ["node_modules/"],
 	"include": ["src/", "src/index.ts"]

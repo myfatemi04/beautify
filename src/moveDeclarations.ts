@@ -17,7 +17,7 @@ export function moveDeclarationsInward(
   let statement: types.Statement;
   let statementsUpdated: types.Statement[] = [];
 
-  const hasBeenDeclared = {};
+  const hasBeenDeclared: { [name: string]: boolean } = {};
 
   const checkIfUsedInside = (name: string) => {
     for (let statement of statements) {

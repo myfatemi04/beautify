@@ -5,26 +5,23 @@ export function patternToExpression(pattern: types.Pattern) {
     return objectPatternToExpression(pattern);
   } else if (pattern.type === "ArrayPattern") {
     return arrayPatternToExpression(pattern);
-  } else if (pattern.type === "AssignmentPattern") {
+  } else {
+    // AssignmentPattern
     return assignmentPatternToExpression(pattern);
   }
 }
 
-export function lvalToExpressionOrSpreadElement(
+export function lvalToExpression(
   lval: types.LVal
-): types.Expression | types.SpreadElement {
+): types.Expression {
   if (types.isPattern(lval)) {
     return patternToExpression(lval);
   } else if (types.isExpression(lval)) {
     return lval;
   } else if (lval.type === "RestElement") {
-    let exp = lvalToExpressionOrSpreadElement(lval.argument);
-    if (exp.type !== "SpreadElement") {
-      return types.spreadElement(exp);
-    } else {
-      /// what the fuckkkk
-      console.error("Found spread element in spread element?", exp);
-    }
+    throw new Error("Found RestElement outside of ObjectPattern or ArrayPattern");
+  } else {
+    throw new Error("Unhandled type for Lval: " + lval);
   }
 }
 
@@ -51,6 +48,8 @@ export function arrayPatternToExpression(
           return element.argument;
         } else if (element.type === "RestElement") {
           throw new Error("RestElement within RestElement");
+        } else {
+          throw new Error("Unhandled property in Array Pattern: " + element);
         }
       } else {
         return patternToExpression(element);
@@ -59,6 +58,11 @@ export function arrayPatternToExpression(
   );
 }
 
+/**
+ * Converts object patterns like "{a: b} = c" to the Object "{a: b}""
+ * 
+ * @param pattern Pattern (like "let {a} = b", {a} is the ObjectPattern)
+ */
 export function objectPatternToExpression(
   pattern: types.ObjectPattern
 ): types.ObjectExpression {
@@ -71,6 +75,8 @@ export function objectPatternToExpression(
           return types.spreadElement(property.argument);
         } else if (property.type === "RestElement") {
           throw new Error("RestElement within RestElement");
+        } else {
+          throw new Error("Unhandled property in Object Pattern: " + property);
         }
       } else {
         return types.objectProperty(property.key, property.value);
