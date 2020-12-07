@@ -1,60 +1,78 @@
 import * as types from "@babel/types";
 import * as uses from "./uses";
 import { Scope } from "./scope";
+import expressionHasSideEffects from "./expressionHasSideEffects";
 
-type CheckIfUsedAfterFunction = (identifier: string) => boolean;
-type CheckIfDeclaredFunction = (identifier: string) => boolean;
-type CheckIfDefinedInThisScopeFunction = (identifier: string) => boolean;
+type CheckIfUsedOutsideFunction = (identifier: string) => boolean;
+type CheckIfDeclaredOutsideFunction = (identifier: string) => boolean;
+type CheckIfUpdatedOutsideFunction = (identifier: string) => boolean;
 
 export function moveDeclarationsInward(
   statements: types.Statement[],
   scope: Scope,
-  isUsedAfter: CheckIfUsedAfterFunction = () => false,
-  isDeclared: CheckIfDeclaredFunction = () => false,
-  isDefinedInThisScope: CheckIfDefinedInThisScopeFunction = () => false
+  isUsedOutside: CheckIfUsedOutsideFunction = () => false,
+  isDeclaredOutside: CheckIfDeclaredOutsideFunction = () => false,
+  isUpdatedOutside: CheckIfUpdatedOutsideFunction = () => false
 ): types.Statement[] {
   let statement: types.Statement;
   let statementsUpdated: types.Statement[] = [];
 
-  let declared = {};
+  const hasBeenDeclared = {};
 
-  const checkIfUsedAfter = (name: string) => {
+  const checkIfUsedInside = (name: string) => {
     for (let statement of statements) {
       let externalUses = uses.getIdentifiersStatementUsesExternally(statement);
-      let isOverwritten = false;
-      let isRead = false;
 
       for (let use of externalUses) {
         if (use.id.name === name) {
           if (use.type === "get") {
-            isRead = true;
-            break;
-          } else if (use.type === "set") {
-            isOverwritten = true;
-            break;
+            return true;
+          } else {
+            return false;
           }
         }
       }
-
-      return isRead;
     }
+    return false;
   };
 
-  const checkIfDeclared = (name: string) => {
-    return name in declared;
+  const checkIfUsedLater: CheckIfUsedOutsideFunction = (name: string) => {
+    return checkIfUsedInside(name) || isUsedOutside(name);
   };
 
-  const checkIfDefinedInThisScope = (name: string) => {
-    return true;
+  const checkIfUpdatedInside = (name: string) => {
+    for (let statement of statements) {
+      let externalUses = uses.getIdentifiersStatementUsesExternally(statement);
+
+      for (let use of externalUses) {
+        if (use.id.name === name) {
+          if (use.type === "set") {
+            return true;
+          }
+        }
+      }
+    }
+
+    return false;
+  };
+
+  const checkIfUpdatedLater: CheckIfUpdatedOutsideFunction = (name: string) => {
+    return checkIfUpdatedInside(name) || isUpdatedOutside(name);
+  };
+
+  const checkIfDeclaredOutside: CheckIfDeclaredOutsideFunction = (
+    name: string
+  ) => {
+    return name in hasBeenDeclared || isDeclaredOutside(name);
   };
 
   const moveDeclarationsInward_ = (statements: types.Statement[]) => {
     return moveDeclarationsInward(
       statements,
       scope,
-      checkIfUsedAfter,
-      checkIfDeclared,
-      checkIfDefinedInThisScope
+      checkIfUsedLater,
+      checkIfDeclaredOutside,
+      checkIfUpdatedLater
     );
   };
 
@@ -70,22 +88,41 @@ export function moveDeclarationsInward(
         if (expression.type === "AssignmentExpression") {
           if (types.isIdentifier(expression.left)) {
             let name = expression.left.name;
-            let usedAfter = isUsedAfter(name);
-            let declared = isDeclared(name);
 
-            if (!usedAfter && !declared) {
+            // the value is unused:
+            if (!checkIfUsedLater(name)) {
+              // check if the expression actually does something
+              if (expressionHasSideEffects(expression.right)) {
+                statementsUpdated.push(
+                  types.expressionStatement(expression.right)
+                );
+              }
+
+              continue;
+            }
+
+            let usedOutsideThisBlock = isUsedOutside(name);
+            let declaredAlreadyInsideThisBlock = isDeclaredOutside(name);
+            let updatedAfter = isUpdatedOutside(name);
+
+            if (!usedOutsideThisBlock && !declaredAlreadyInsideThisBlock) {
               // If this variable isn't used eventually,
               // and it hasn't been declared yet, then
               // we can turn this assignment into a "let"
               // statement.
               statementsUpdated.push(
-                types.variableDeclaration("let", [
+                types.variableDeclaration(updatedAfter ? "let" : "const", [
                   types.variableDeclarator(
                     types.identifier(name),
                     expression.right
                   ),
                 ])
               );
+
+              hasBeenDeclared[name] = true;
+
+              delete scope.vars[name];
+
               continue;
             }
           }
@@ -93,7 +130,7 @@ export function moveDeclarationsInward(
 
         statementsUpdated.push(statement);
 
-        break;
+        continue;
       }
 
       case "BlockStatement": {
@@ -101,7 +138,7 @@ export function moveDeclarationsInward(
           types.blockStatement(moveDeclarationsInward_(statement.body))
         );
 
-        break;
+        continue;
       }
 
       case "ForStatement": {
@@ -121,7 +158,7 @@ export function moveDeclarationsInward(
           statementsUpdated.push(statement);
         }
 
-        break;
+        continue;
       }
 
       case "ForInStatement":
@@ -147,7 +184,7 @@ export function moveDeclarationsInward(
           statementsUpdated.push(statement);
         }
 
-        break;
+        continue;
       }
 
       case "WhileStatement":
@@ -174,7 +211,7 @@ export function moveDeclarationsInward(
           statementsUpdated.push(statement);
         }
 
-        break;
+        continue;
       }
 
       case "LabeledStatement": {
@@ -189,7 +226,7 @@ export function moveDeclarationsInward(
           statementsUpdated.push(statement);
         }
 
-        break;
+        continue;
       }
 
       case "FunctionDeclaration": {
@@ -203,8 +240,31 @@ export function moveDeclarationsInward(
             statement.async
           )
         );
+
+        continue;
+      }
+
+      case "IfStatement": {
+        let { test, consequent, alternate } = statement;
+
+        if (types.isBlockStatement(consequent)) {
+          consequent = types.blockStatement(
+            moveDeclarationsInward_(consequent.body)
+          );
+        }
+
+        if (types.isBlockStatement(alternate)) {
+          alternate = types.blockStatement(
+            moveDeclarationsInward_(alternate.body)
+          );
+        }
+
+        statementsUpdated.push(types.ifStatement(test, consequent, alternate));
+        continue;
       }
     }
+
+    statementsUpdated.push(statement);
   }
 
   return statementsUpdated;

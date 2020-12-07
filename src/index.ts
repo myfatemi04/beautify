@@ -10,8 +10,8 @@ let { program } = parser.parse(inputCode);
 
 let refactored = {
   ...program,
-  body: rewriteScopedStatementArray(program.body, { vars: {} })
-}
+  body: rewriteScopedStatementArray(program.body, { vars: {} }),
+};
 
 let { code } = generate(refactored);
 

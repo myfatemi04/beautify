@@ -51,5 +51,3 @@ export function getAllDeclaredIdentifiers(
 
   return identifiers;
 }
-
-

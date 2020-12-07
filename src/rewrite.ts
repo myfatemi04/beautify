@@ -132,12 +132,40 @@ export function rewriteAssignmentExpression(
     }
   }
 
-  let [preamble, [right]] = rewriteAndReduce(scope, expression.right);
+  // if you're doing something like... "A = B = C",
+  // then we split it into "B = C", "A = B"
+  if (types.isAssignmentExpression(expression.right)) {
+    let { preamble, value } = rewriteAssignmentExpression(
+      expression.right,
+      scope
+    );
+    preamble.push(types.expressionStatement(value));
 
-  return {
-    preamble,
-    value: types.assignmentExpression("=", expression.left, right),
-  };
+    let right = lvalToExpressionOrSpreadElement(expression.right.left);
+    if (right.type === "SpreadElement") {
+      throw new Error("Assigning to SpreadElement");
+    }
+
+    return {
+      preamble,
+      value: types.assignmentExpression(
+        expression.operator,
+        expression.left,
+        right
+      ),
+    };
+  } else {
+    let [preamble, [right]] = rewriteAndReduce(scope, expression.right);
+
+    return {
+      preamble,
+      value: types.assignmentExpression(
+        expression.operator,
+        expression.left,
+        right
+      ),
+    };
+  }
 }
 
 export function rewriteSpreadElement(
@@ -587,6 +615,48 @@ export function createIfStatement(
   );
 }
 
+export function rewriteSequenceExpressionStatement(
+  sequence: types.SequenceExpression,
+  scope: Scope
+): Preambleable<types.Statement> {
+  let expressions = sequence.expressions;
+  if (expressions.length > 0) {
+    let preambleExpressions = expressions.slice(0, expressions.length - 1);
+    let preamble: types.Statement[] = [];
+    for (let expression of preambleExpressions) {
+      let {
+        preamble: preamble_,
+        value: expressionStatement,
+      } = rewriteExpressionStatement(
+        types.expressionStatement(expression),
+        scope
+      );
+
+      preamble = preamble.concat(preamble_);
+
+      if (expressionStatement) {
+        preamble.push(expressionStatement);
+      }
+    }
+
+    let rewrittenExpressionStatement = rewriteExpressionStatement(
+      types.expressionStatement(expressions[expressions.length - 1]),
+      scope
+    );
+    preamble = preamble.concat(rewrittenExpressionStatement.preamble);
+
+    return {
+      preamble,
+      value: rewrittenExpressionStatement.value,
+    };
+  } else {
+    return {
+      preamble: [],
+      value: undefined,
+    };
+  }
+}
+
 export function rewriteSequenceExpression(
   sequence: types.SequenceExpression,
   scope: Scope
@@ -594,19 +664,18 @@ export function rewriteSequenceExpression(
   let expressions = sequence.expressions;
   if (expressions.length > 0) {
     let preambleExpressions = expressions.slice(0, expressions.length - 1);
-    let preambleStatements: types.ExpressionStatement[] = preambleExpressions.map(
-      (expression) => types.expressionStatement(expression)
-    );
-
     let preamble: types.Statement[] = [];
-    for (let statement of preambleStatements) {
-      let {
-        preamble: preamble_,
-        value: statement_,
-      } = rewriteExpressionStatement(statement, scope);
+    for (let expression of preambleExpressions) {
+      let { preamble: preamble_, value: expression_ } = rewriteExpression(
+        expression,
+        scope
+      );
 
       preamble = preamble.concat(preamble_);
-      preamble.push(statement_);
+
+      if (expression_) {
+        preamble.push(types.expressionStatement(expression_));
+      }
     }
 
     let expression = expressions[expressions.length - 1];
@@ -626,14 +695,16 @@ export function rewriteSequenceExpression(
 export function rewriteExpressionStatement(
   statement: types.ExpressionStatement,
   scope: Scope
-): Preambleable<types.ExpressionStatement | types.IfStatement> {
+): Preambleable<types.Statement> {
   let expression = statement.expression;
   switch (expression.type) {
     case "ConditionalExpression":
       return beautifyConditionalExpressionStatement(expression, scope);
-    case "LogicalExpression": {
+    case "LogicalExpression":
       return rewriteLogicalExpressionAsIfStatement(expression, scope);
-    }
+    case "SequenceExpression":
+      return rewriteSequenceExpressionStatement(expression, scope);
+
     default: {
       let { preamble, value } = rewriteExpression(expression, scope);
 
@@ -979,25 +1050,32 @@ export function rewriteStatementArray(
   return statements_;
 }
 
+import generate from "@babel/generator";
+import { createLogicalAnd } from "typescript";
+import { lvalToExpressionOrSpreadElement } from "./patternToExpression";
+
 export function rewriteScopedStatementArray(
   body: types.Statement[],
   parent: Scope
 ): types.Statement[] {
   let scope: Scope = {
     vars: {},
-    parent,
+    parent: parent,
   };
 
   hoistAll(body, scope);
   body = rewriteStatementArrayVarsAsAssignments(body);
+  body = rewriteStatementArray(body, scope);
 
+  // This updates the variable "scope", removing var declarations as necessary
+  body = moveDeclarationsInward(body, scope);
+
+  // Any declarations that still need to be added are placed at the start
   let varDeclarations = createHoistedVariableDeclarations(
     Object.keys(scope.vars)
   );
 
-  body = [...varDeclarations, ...body];
-  body = rewriteStatementArray(body, scope);
-  body = moveDeclarationsInward(body, scope);
+  // body = [...varDeclarations, ...body];
 
   return body;
 }

@@ -103,7 +103,7 @@ export function rewriteVarsAsAssignments(
     // AKAIK you can't set the value of a var in these statements
     case "ForOfStatement":
     case "ForInStatement":
-      break
+      break;
   }
 
   return statement;

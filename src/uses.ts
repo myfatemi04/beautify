@@ -1,5 +1,5 @@
 import * as types from "@babel/types";
-import { type } from "os";
+import getRootNodeOfMemberExpression from "./getRootNodeOfMemberExpression";
 
 type IdentifierAccess =
   | {
@@ -49,16 +49,6 @@ function combine(...infos: IdentifierAccess[][]): IdentifierAccess[] {
   return [].concat(...infos);
 }
 
-function getParentNodeOfMemberExpression(
-  expression: types.Expression
-): types.Expression {
-  if (expression.type === "MemberExpression") {
-    return getParentNodeOfMemberExpression(expression);
-  } else {
-    return expression;
-  }
-}
-
 export function getIdentifiersExpressionUses(
   expression:
     | types.Expression
@@ -72,6 +62,16 @@ export function getIdentifiersExpressionUses(
     case "SpreadElement":
     case "UnaryExpression":
       return getIdentifiersExpressionUses(expression.argument);
+
+    case "UpdateExpression":
+      if (expression.argument.type === "Identifier") {
+        return [
+          { type: "get", id: expression.argument },
+          { type: "set", id: expression.argument },
+        ];
+      } else {
+        return getIdentifiersExpressionUses(expression.argument);
+      }
 
     case "Identifier":
       return [{ type: "get", id: expression }];
@@ -118,7 +118,7 @@ export function getIdentifiersExpressionUses(
       if (lhs.type === "Identifier") {
         identifiers.push({ type: "set", id: lhs });
       } else if (lhs.type === "MemberExpression") {
-        let object = getParentNodeOfMemberExpression(lhs.object);
+        let object = getRootNodeOfMemberExpression(lhs.object);
         if (object.type === "Identifier") {
           identifiers.push({ type: "get", id: object });
         }
@@ -243,7 +243,7 @@ export function getIdentifiersStatementUsesExternally(
         return combine(
           getIdentifiersVariableDeclarationUses(statement.init),
           getIdentifiersExpressionUses(statement.test)
-        )
+        );
       } else {
         return combine(
           getIdentifiersExpressionUses(statement.init),
@@ -267,5 +267,14 @@ export function getIdentifiersStatementUsesExternally(
     case "FunctionDeclaration":
       return [];
 
+    case "ReturnStatement":
+    case "BreakStatement":
+    case "ContinueStatement":
+    case "ClassDeclaration":
+      return [];
   }
+
+  console.warn("Unhandled statement type:", statement);
+
+  return [];
 }

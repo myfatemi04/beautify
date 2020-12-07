@@ -1,6 +1,8 @@
 import * as types from "@babel/types";
 
-export default function negateExpression(expression: types.Expression): types.Expression {
+export default function negateExpression(
+  expression: types.Expression
+): types.Expression {
   switch (expression.type) {
     case "LogicalExpression":
       if (expression.operator === "&&") {
