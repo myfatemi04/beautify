@@ -1,7 +1,8 @@
 import * as types from "@babel/types";
-import * as uses from "./uses";
 import { Scope } from "./scope";
 import expressionHasSideEffects from "./expressionHasSideEffects";
+import { getIdentifiersStatementUses } from "./getIdentifiersStatementUses";
+import { getIdentifiersLValUses } from "./getIdentifiersLValUses";
 
 type CheckIfUsedOutsideFunction = (identifier: string) => boolean;
 type CheckIfDeclaredOutsideFunction = (identifier: string) => boolean;
@@ -17,6 +18,10 @@ export function traverseExpression(
   isDeclaredOutside: CheckIfDeclaredOutsideFunction = () => false,
   isUpdatedOutside: CheckIfUpdatedOutsideFunction = () => false
 ): types.Expression {
+  if (expression == null) {
+    return expression;
+  }
+
   if (types.isIdentifier(expression)) {
     return expression;
   }
@@ -212,7 +217,7 @@ export function moveDeclarationsInward(
 
   const checkIfUsedInside = (name: string) => {
     for (let statement of statements) {
-      let externalUses = uses.getIdentifiersStatementUses(statement);
+      let externalUses = getIdentifiersStatementUses(statement);
 
       for (let use of externalUses) {
         if (use.id.name === name) {
@@ -233,7 +238,7 @@ export function moveDeclarationsInward(
 
   const checkIfUpdatedInside = (name: string) => {
     for (let statement of statements) {
-      let externalUses = uses.getIdentifiersStatementUses(statement);
+      let externalUses = getIdentifiersStatementUses(statement);
 
       for (let use of externalUses) {
         if (use.id.name === name) {
@@ -481,9 +486,7 @@ export function moveDeclarationsInward(
           types.variableDeclaration(
             "let",
             statement.declarations.map((declarator) => {
-              for (let identifier of uses.getIdentifiersLValUses(
-                declarator.id
-              )) {
+              for (let identifier of getIdentifiersLValUses(declarator.id)) {
                 hasBeenDeclared[identifier.id.name] = true;
               }
 
