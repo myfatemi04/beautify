@@ -29,7 +29,7 @@ export function getIdentifiersExpressionsUse(
     }
   });
 
-  return [].concat(identifiers);
+  return [].concat(...identifiers);
 }
 
 export function getIdentifiersExpressionUses(

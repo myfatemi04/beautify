@@ -219,6 +219,7 @@ export function moveDeclarationsInward(
     for (let statement of statements) {
       let externalUses = getIdentifiersStatementUses(statement);
 
+      // console.log(externalUses);
       for (let use of externalUses) {
         if (use.id.name === name) {
           if (use.type === "get") {

@@ -10,7 +10,9 @@ export function getIdentifiersPatternLikeUses(
     return getIdentifiersLValUses(patternLike.argument);
   } else if (patternLike.type === "Identifier") {
     return [{ type: "set", id: patternLike }];
-  } else {
+  } else if (types.isPattern(patternLike)) {
     return getIdentifiersPatternUses(patternLike);
+  } else {
+    throw new Error("Patternlike was not Patternlike: " + patternLike)
   }
 }
