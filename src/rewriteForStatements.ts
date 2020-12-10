@@ -1,5 +1,6 @@
 import * as types from "@babel/types";
 import { rewriteExpression } from "./rewriteExpression";
+import { rewriteSequenceExpressionStatementGetLastValue } from "./rewriteSequenceExpression";
 import {
   rewriteStatement,
   rewriteStatementWrapWithBlock,
@@ -25,6 +26,14 @@ export function rewriteForStatement(
     if (statement.init.type === "VariableDeclaration") {
       let declarations = rewriteVariableDeclaration(statement.init, scope);
       preamble.push(...declarations);
+    } else if (statement.init.type === "SequenceExpression") {
+      let {
+        value,
+        preceeding,
+      } = rewriteSequenceExpressionStatementGetLastValue(statement.init, scope);
+      
+      init = value;
+      preamble = preceeding;
     } else {
       init = rewriteExpression(statement.init, scope);
     }

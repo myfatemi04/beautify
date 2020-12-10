@@ -13,6 +13,7 @@ export function rewriteExpressionStatement(
 
   switch (expression.type) {
     case "ConditionalExpression":
+      console.log("rewriting cond expr");
       return rewriteConditionalExpressionStatement(expression, scope);
     case "LogicalExpression":
       return rewriteLogicalExpressionStatement(expression, scope);

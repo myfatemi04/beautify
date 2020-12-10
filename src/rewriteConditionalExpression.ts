@@ -15,7 +15,7 @@ export function rewriteConditionalExpressionStatement(
 ): types.Statement[] {
   return rewriteIfStatement(
     types.ifStatement(
-      expression.test,
+      rewriteExpression(expression.test, scope),
       types.expressionStatement(expression.consequent),
       types.expressionStatement(expression.alternate)
     ),

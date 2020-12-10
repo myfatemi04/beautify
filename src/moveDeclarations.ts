@@ -9,7 +9,7 @@ type CheckIfDeclaredOutsideFunction = (identifier: string) => boolean;
 type CheckIfUpdatedOutsideFunction = (identifier: string) => boolean;
 
 /**
- * Looks for arrow functions and function declarations
+ * Looks for arrow functions and function declarations, essentially
  */
 export function traverseExpression(
   expression: types.Expression,
@@ -202,6 +202,11 @@ export function traverseExpression(
 
     case "YieldExpression":
       return types.yieldExpression(traverseExpression_(expression.argument));
+
+    case "SequenceExpression":
+      return types.sequenceExpression(expression.expressions.map(expression => {
+        return traverseExpression_(expression);
+      }));
   }
 
   console.warn("traverseExpression() needs case", expression);

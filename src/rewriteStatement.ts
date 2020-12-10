@@ -72,5 +72,11 @@ export function rewriteStatementWrapWithBlock(
   statement: types.Statement,
   scope: Scope
 ): types.BlockStatement {
-  return types.blockStatement(rewriteStatement(statement, scope));
+  let statement_ = rewriteStatement(statement, scope);
+  if (statement_.length == 1) {
+    if (types.isBlockStatement(statement_)) {
+      return statement_;
+    }
+  }
+  return types.blockStatement(statement_);
 }
