@@ -1,5 +1,6 @@
 import * as types from "@babel/types";
 import { rewriteConditionalExpressionStatement } from "./rewriteConditionalExpression";
+import { rewriteExpression } from "./rewriteExpression";
 import { rewriteLogicalExpressionStatement } from "./rewriteLogicalExpression";
 import { rewriteSequenceExpressionStatement } from "./rewriteSequenceExpression";
 import { Scope } from "./scope";
@@ -9,6 +10,7 @@ export function rewriteExpressionStatement(
   scope: Scope
 ): types.Statement[] {
   let expression = statement.expression;
+
   switch (expression.type) {
     case "ConditionalExpression":
       return rewriteConditionalExpressionStatement(expression, scope);
@@ -18,6 +20,6 @@ export function rewriteExpressionStatement(
       return rewriteSequenceExpressionStatement(expression, scope);
 
     default:
-      return [types.expressionStatement(expression)];
+      return [types.expressionStatement(rewriteExpression(expression, scope))];
   }
 }

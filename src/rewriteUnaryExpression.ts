@@ -1,4 +1,5 @@
 import * as types from "@babel/types";
+import { isNumericLiteral } from "typescript";
 import { rewriteExpression } from "./rewriteExpression";
 import { Scope } from "./scope";
 
@@ -19,7 +20,7 @@ export function rewriteNegatedUnaryExpressionArgument(
     // Remove "!" before (function(){})()
     return rewriteExpression(argument, scope);
   } else {
-    return types.unaryExpression("!", rewriteExpression(argument, scope))
+    return types.unaryExpression("!", rewriteExpression(argument, scope));
   }
 }
 
@@ -30,11 +31,7 @@ export function rewriteUnaryExpression(
   if (expression.operator === "!") {
     return rewriteNegatedUnaryExpressionArgument(expression.argument, scope);
   } else if (expression.operator === "void") {
-    if (expression.argument.type === "NumericLiteral") {
-      if (expression.argument.value === 0) {
-        return types.identifier("undefined");
-      }
-    }
+    return types.identifier("undefined");
   }
 
   return expression;
