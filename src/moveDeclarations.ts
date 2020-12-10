@@ -604,9 +604,13 @@ export function moveDeclarationsInward(
           types.throwStatement(traverseExpression_(statement.argument))
         );
         continue;
+
+      case "EmptyStatement":
+        statementsUpdated.push(statement);
+        continue;
     }
 
-    console.log("reached end with statement", statement);
+    console.log("moveDeclarations() needs statement", statement);
 
     statementsUpdated.push(statement);
   }
