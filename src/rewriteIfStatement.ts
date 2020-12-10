@@ -2,7 +2,10 @@ import * as types from "@babel/types";
 import { rewriteExpression } from "./rewriteExpression";
 import { rewriteExpressionStatement } from "./rewriteExpressionStatement";
 import { rewriteSequenceExpressionStatementGetLastValue } from "./rewriteSequenceExpression";
-import { rewriteStatementWrapWithBlock } from "./rewriteStatement";
+import {
+  rewriteStatement,
+  rewriteStatementWrapWithBlock,
+} from "./rewriteStatement";
 import { Scope } from "./scope";
 
 /**
@@ -31,7 +34,17 @@ export function rewriteIfStatement(
   }
 
   if (alternate) {
-    alternate = rewriteStatementWrapWithBlock(alternate, scope);
+    let alternate_ = rewriteStatement(alternate, scope);
+    // use proper block wrapping
+    if (alternate_.length > 1) {
+      alternate = types.blockStatement(alternate_);
+    } else if (types.isIfStatement(alternate_[0])) {
+      alternate = alternate_[0];
+    } else if (types.isBlockStatement(alternate_[0])) {
+      alternate = alternate_[0];
+    } else {
+      alternate = types.blockStatement(alternate_);
+    }
   }
 
   return [...preamble, types.ifStatement(test, consequent, alternate)];
