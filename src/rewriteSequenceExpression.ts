@@ -16,6 +16,9 @@ export function rewriteSequenceExpressionStatementGetLastValue(
   sequence: types.SequenceExpression,
   scope: Scope
 ): { value: types.Expression; preceeding: types.ExpressionStatement[] } {
+  if (sequence.expressions.length === 0) {
+    return { value: sequence, preceeding: [] };
+  }
   let preceeding = sequence.expressions.slice(
     0,
     sequence.expressions.length - 1

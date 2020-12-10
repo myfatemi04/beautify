@@ -54,7 +54,7 @@ export function traverseExpression(
     case "ArrayExpression":
       return types.arrayExpression(
         expression.elements.map((element) => {
-          if (element.type === "SpreadElement") {
+          if (element == null || element.type === "SpreadElement") {
             return element;
           }
 
