@@ -1,12 +1,7 @@
 import * as types from "@babel/types";
-import { createIfStatement } from "./createIfStatement";
-import Preambleable, { addPreamble } from "./Preambleable";
 import { rewriteExpression } from "./rewriteExpression";
-import {
-  rewriteSequenceExpression,
-  rewriteSequenceExpressionStatement,
-  rewriteSequenceExpressionUseLastValue,
-} from "./rewriteSequenceExpression";
+import { rewriteIfStatement } from "./rewriteIfStatement";
+import { rewriteSequenceExpressionStatementGetLastValue } from "./rewriteSequenceExpression";
 import { Scope } from "./scope";
 
 /**
@@ -20,37 +15,34 @@ import { Scope } from "./scope";
 export function rewriteReturnStatement(
   statement: types.ReturnStatement,
   scope: Scope
-): Preambleable<types.ReturnStatement | types.IfStatement> {
+): types.Statement[] {
   if (!statement.argument) {
-    return addPreamble(statement);
+    return [statement];
   } else {
     if (statement.argument.type === "ConditionalExpression") {
       let { test, consequent, alternate } = statement.argument;
 
-      return createIfStatement(
-        test,
-        types.returnStatement(consequent),
-        types.returnStatement(alternate),
+      return rewriteIfStatement(
+        types.ifStatement(
+          test,
+          types.returnStatement(consequent),
+          types.returnStatement(alternate)
+        ),
         scope
       );
     }
 
     if (statement.argument.type === "SequenceExpression") {
-      let { preamble, value } = rewriteSequenceExpressionUseLastValue(
+      let rewritten = rewriteSequenceExpressionStatementGetLastValue(
         statement.argument,
         scope
       );
 
-      return {
-        preamble,
-        value: types.returnStatement(value),
-      };
+      return [...rewritten.preceeding, types.returnStatement(rewritten.value)];
     }
 
-    let { preamble, value } = rewriteExpression(statement.argument, scope);
-    return {
-      preamble,
-      value: types.returnStatement(value),
-    };
+    return [
+      types.returnStatement(rewriteExpression(statement.argument, scope)),
+    ];
   }
 }

@@ -1,6 +1,5 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
-import { rewriteExpressionsAndConcat } from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
 import { Scope } from "./scope";
 
 /**
@@ -11,17 +10,14 @@ import { Scope } from "./scope";
 export function rewriteBinaryExpression(
   expression: types.BinaryExpression,
   scope: Scope
-): Preambleable<types.BinaryExpression> {
-  let preamble = [];
+): types.BinaryExpression {
   let { left, right, operator } = expression;
 
-  if (left.type !== "PrivateName")
-    left = rewriteExpressionsAndConcat(left, scope, preamble);
+  if (left.type !== "PrivateName") {
+    left = rewriteExpression(left, scope);
+  }
 
-  right = rewriteExpressionsAndConcat(right, scope, preamble);
+  right = rewriteExpression(right, scope);
 
-  return {
-    preamble,
-    value: types.binaryExpression(operator, left, right),
-  };
+  return types.binaryExpression(operator, left, right);
 }

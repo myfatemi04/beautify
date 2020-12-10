@@ -1,5 +1,4 @@
 import * as types from "@babel/types";
-import Preambleable, { addPreamble } from "./Preambleable";
 import { rewriteBlockStatement } from "./rewriteBlockStatement";
 import { rewriteClassDeclaration } from "./rewriteClass";
 import { rewriteExpressionStatement } from "./rewriteExpressionStatement";
@@ -22,57 +21,56 @@ import {
   rewriteWhileStatement,
 } from "./rewriteWhileDoWhile";
 import { Scope } from "./scope";
-import wrapWithBlock from "./wrapWithBlock";
 
 export function rewriteStatement(
   statement: types.Statement,
   scope: Scope
-): Preambleable<types.Statement> {
+): types.Statement[] {
   switch (statement.type) {
     case "ExpressionStatement":
       return rewriteExpressionStatement(statement, scope);
     case "ForStatement":
       return rewriteForStatement(statement, scope);
     case "BlockStatement":
-      return addPreamble(rewriteBlockStatement(statement, scope));
+      return [rewriteBlockStatement(statement, scope)];
     case "IfStatement":
       return rewriteIfStatement(statement, scope);
     case "FunctionDeclaration":
-      return addPreamble(rewriteFunctionDeclaration(statement, scope));
+      return [rewriteFunctionDeclaration(statement, scope)];
     case "ReturnStatement":
       return rewriteReturnStatement(statement, scope);
     case "VariableDeclaration":
       return rewriteVariableDeclaration(statement, scope);
     case "ClassDeclaration":
-      return addPreamble(rewriteClassDeclaration(statement, scope));
+      return [rewriteClassDeclaration(statement, scope)];
     case "SwitchStatement":
-      return rewriteSwitchStatement(statement, scope);
+      return [rewriteSwitchStatement(statement, scope)];
     case "TryStatement":
-      return addPreamble(rewriteTryStatement(statement, scope));
+      return [rewriteTryStatement(statement, scope)];
     case "ThrowStatement":
-      return rewriteThrowStatement(statement, scope);
+      return [rewriteThrowStatement(statement, scope)];
     case "ForInStatement":
     case "ForOfStatement":
-      return rewriteForOfInStatement(statement, scope);
+      return [rewriteForOfInStatement(statement, scope)];
     case "DoWhileStatement":
-      return addPreamble(rewriteDoWhileStatement(statement, scope));
+      return [rewriteDoWhileStatement(statement, scope)];
     case "LabeledStatement":
-      return addPreamble(rewriteLabeledStatement(statement, scope));
+      return [rewriteLabeledStatement(statement, scope)];
     case "WhileStatement":
-      return rewriteWhileStatement(statement, scope);
+      return [rewriteWhileStatement(statement, scope)];
     case "ContinueStatement":
     case "BreakStatement":
     case "EmptyStatement":
-      return addPreamble(statement);
+      return [statement];
   }
 
   console.log("UNSEEN STATEMENT TYPE:", statement.type);
-  return addPreamble(statement);
+  return [statement];
 }
 
 export function rewriteStatementWrapWithBlock(
   statement: types.Statement,
   scope: Scope
 ): types.BlockStatement {
-  return wrapWithBlock(rewriteStatement(statement, scope));
+  return types.blockStatement(rewriteStatement(statement, scope));
 }

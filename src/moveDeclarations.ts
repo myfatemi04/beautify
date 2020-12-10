@@ -196,6 +196,12 @@ export function traverseExpression(
 
     case "ThisExpression":
       return expression;
+
+    case "AwaitExpression":
+      return types.awaitExpression(traverseExpression_(expression.argument));
+
+    case "YieldExpression":
+      return types.yieldExpression(traverseExpression_(expression.argument));
   }
 
   console.warn("traverseExpression() needs case", expression);
@@ -224,8 +230,10 @@ export function moveDeclarationsInward(
         if (use.id.name === name) {
           if (use.type === "get") {
             return true;
-          } else {
+          } else if (use.type === "set") {
             return false;
+          } else if (use.type === "define") {
+            // do nothing
           }
         }
       }

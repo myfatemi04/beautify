@@ -1,5 +1,4 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
 import { rewriteBlockStatement } from "./rewriteBlockStatement";
 import { rewriteExpression } from "./rewriteExpression";
 import { Scope } from "./scope";
@@ -52,13 +51,6 @@ export function rewriteTryStatement(
 export function rewriteThrowStatement(
   statement: types.ThrowStatement,
   scope: Scope
-): Preambleable<types.ThrowStatement> {
-  let { preamble, value: argument } = rewriteExpression(
-    statement.argument,
-    scope
-  );
-  return {
-    preamble,
-    value: types.throwStatement(argument),
-  };
+): types.ThrowStatement {
+  return types.throwStatement(rewriteExpression(statement.argument, scope));
 }

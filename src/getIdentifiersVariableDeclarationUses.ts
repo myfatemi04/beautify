@@ -8,12 +8,23 @@ export function getIdentifiersVariableDeclarationUses(
 ): IdentifierAccess[] {
   let identifiers: IdentifierAccess[] = [];
   for (let declaration of declaration_.declarations) {
-    identifiers.push(...getIdentifiersLValUses(declaration.id));
-
     if (declaration.init) {
-      identifiers.push(...getIdentifiersExpressionUses(declaration.init));
+      let i = getIdentifiersExpressionUses(declaration.init);
+      identifiers.push(...i);
     }
-  }
 
+    identifiers.push(
+      ...getIdentifiersLValUses(declaration.id).map((access) => {
+        if (access.type === "set") {
+          return <IdentifierAccess>{
+            type: "define",
+            id: access.id,
+          };
+        } else {
+          return access;
+        }
+      })
+    );
+  }
   return identifiers;
 }

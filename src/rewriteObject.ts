@@ -1,6 +1,5 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
-import { rewriteExpressionsAndConcat } from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
 import { rewriteSpreadElement } from "./rewriteSpreadElement";
 import { rewriteScopedStatementArray } from "./rewriteStatementArray";
 import { Scope } from "./scope";
@@ -18,37 +17,39 @@ export function rewriteObjectMethod(
   );
 }
 
+export function rewriteObjectProperty(
+  property: types.ObjectProperty,
+  scope: Scope
+): types.ObjectProperty {
+  let key = property.key;
+  if (!property.computed) {
+    key = rewriteExpression(key, scope);
+  }
+  let value = property.value;
+  if (types.isExpression(value)) {
+    value = rewriteExpression(value, scope);
+  } else if (types.isRestElement(value)) {
+  }
+  return types.objectProperty(key, value);
+}
+
 export function rewriteObjectExpression(
   expression: types.ObjectExpression,
   scope: Scope
-): Preambleable<types.ObjectExpression> {
-  let preamble: types.Statement[] = [];
+): types.ObjectExpression {
   let properties: Array<
     types.ObjectMethod | types.ObjectProperty | types.SpreadElement
   > = [];
 
   for (let property of expression.properties) {
     if (property.type === "SpreadElement") {
-      let { preamble, value } = rewriteSpreadElement(property, scope);
-      preamble.push(...preamble);
-      properties.push(value);
+      properties.push(rewriteSpreadElement(property, scope));
     } else if (property.type === "ObjectMethod") {
       properties.push(rewriteObjectMethod(property, scope));
     } else if (property.type === "ObjectProperty") {
-      let key = rewriteExpressionsAndConcat(property.key, scope, preamble);
-      let value = property.value;
-
-      if (types.isPattern(value) || types.isRestElement(value)) {
-      } else {
-        value = rewriteExpressionsAndConcat(value, scope, preamble);
-      }
-
-      properties.push(types.objectProperty(key, value));
+      properties.push(rewriteObjectProperty(property, scope));
     }
   }
 
-  return {
-    preamble,
-    value: types.objectExpression(properties),
-  };
+  return types.objectExpression(properties);
 }

@@ -1,7 +1,6 @@
 import * as types from "@babel/types";
 import hasSpecialCharacters from "./hasSpecialCharacters";
-import Preambleable from "./Preambleable";
-import { rewriteExpressionsAndConcat } from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
 import { Scope } from "./scope";
 
 /**
@@ -11,12 +10,11 @@ import { Scope } from "./scope";
 export function rewriteMemberExpression(
   expression: types.MemberExpression,
   scope: Scope
-): Preambleable<types.MemberExpression> {
-  let preamble = [];
-  let object = rewriteExpressionsAndConcat(expression.object, scope, preamble);
+): types.MemberExpression {
+  let object = rewriteExpression(expression.object, scope);
   let property = expression.property;
   if (expression.property.type !== "PrivateName") {
-    property = rewriteExpressionsAndConcat(expression.property, scope, preamble);
+    property = rewriteExpression(expression.property, scope);
   }
 
   let computed = expression.computed;
@@ -28,32 +26,25 @@ export function rewriteMemberExpression(
     }
   }
 
-  return {
-    preamble,
-    value: types.memberExpression(
-      object,
-      property,
-      computed,
-      expression.optional
-    ),
-  };
+  return types.memberExpression(
+    object,
+    property,
+    computed,
+    expression.optional
+  );
 }
 
 export function rewriteOptionalMemberExpression(
   expression: types.OptionalMemberExpression,
   scope: Scope
-): Preambleable<types.OptionalMemberExpression> {
-  let preamble = [];
-  let object = rewriteExpressionsAndConcat(expression.object, scope, preamble);
-  let property = rewriteExpressionsAndConcat(expression.property, scope, preamble);
+): types.OptionalMemberExpression {
+  let object = rewriteExpression(expression.object, scope);
+  let property = rewriteExpression(expression.property, scope);
 
-  return {
-    preamble,
-    value: types.optionalMemberExpression(
-      object,
-      property,
-      expression.computed,
-      expression.optional
-    ),
-  };
+  return types.optionalMemberExpression(
+    object,
+    property,
+    expression.computed,
+    expression.optional
+  );
 }

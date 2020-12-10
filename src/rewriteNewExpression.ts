@@ -1,6 +1,5 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
-import { rewriteExpressionsAndConcat } from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
 import { Scope } from "./scope";
 
 /**
@@ -9,15 +8,11 @@ import { Scope } from "./scope";
 export function rewriteNewExpression(
   expression: types.NewExpression,
   scope: Scope
-): Preambleable<types.NewExpression> {
+): types.NewExpression {
   let callee = expression.callee;
-  let preamble: types.Statement[] = [];
   if (callee.type !== "V8IntrinsicIdentifier") {
-    callee = rewriteExpressionsAndConcat(callee, scope, preamble);
+    callee = rewriteExpression(callee, scope);
   }
 
-  return {
-    preamble,
-    value: types.newExpression(callee, expression.arguments),
-  };
+  return types.newExpression(callee, expression.arguments);
 }

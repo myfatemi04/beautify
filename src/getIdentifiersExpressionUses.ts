@@ -119,6 +119,10 @@ export function getIdentifiersExpressionUses(
     case "MemberExpression":
       return getIdentifiersMemberExpressionUses(expression);
 
+    case "AwaitExpression":
+    case "YieldExpression":
+      return getIdentifiersExpressionUses(expression.argument);
+
     case "BooleanLiteral":
     case "StringLiteral":
     case "BigIntLiteral":

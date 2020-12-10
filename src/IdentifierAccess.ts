@@ -8,4 +8,8 @@ export type IdentifierAccess =
   | {
       type: "set";
       id: types.Identifier;
+    }
+  | {
+      type: "define";
+      id: types.Identifier;
     };

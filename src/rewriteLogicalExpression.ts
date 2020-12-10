@@ -1,8 +1,7 @@
 import * as types from "@babel/types";
-import { createIfStatement } from "./createIfStatement";
 import negateExpression from "./negateExpression";
-import Preambleable from "./Preambleable";
-import { rewriteExpressionsAndReduce } from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
+import { rewriteIfStatement } from "./rewriteIfStatement";
 import { Scope } from "./scope";
 
 /**
@@ -15,30 +14,40 @@ import { Scope } from "./scope";
  * @param scope Scope
  */
 
-export function rewriteLogicalExpressionAsIfStatement(
+export function rewriteLogicalExpressionStatement(
   expression: types.LogicalExpression,
   scope: Scope
-): Preambleable<types.IfStatement> {
+): types.Statement[] {
   if (expression.operator == "&&") {
-    return createIfStatement(
-      expression.left,
-      types.expressionStatement(expression.right),
-      undefined,
+    return rewriteIfStatement(
+      types.ifStatement(
+        expression.left,
+        types.expressionStatement(expression.right),
+        undefined
+      ),
       scope
     );
   } else if (expression.operator === "||") {
-    return createIfStatement(
-      negateExpression(expression.left),
-      types.expressionStatement(expression.right),
-      undefined,
+    return rewriteIfStatement(
+      types.ifStatement(
+        negateExpression(expression.left),
+        types.expressionStatement(expression.right),
+        undefined
+      ),
       scope
     );
   } else {
     expression.operator === "??";
-    return createIfStatement(
-      types.binaryExpression("!=", expression.left, types.nullLiteral()),
-      types.expressionStatement(expression.right),
-      undefined,
+    return rewriteIfStatement(
+      types.ifStatement(
+        types.binaryExpression(
+          "!=",
+          rewriteExpression(expression.left, scope),
+          types.nullLiteral()
+        ),
+        types.expressionStatement(expression.right),
+        undefined
+      ),
       scope
     );
   }
@@ -47,14 +56,10 @@ export function rewriteLogicalExpressionAsIfStatement(
 export function rewriteLogicalExpression(
   expression: types.LogicalExpression,
   scope: Scope
-): Preambleable<types.LogicalExpression> {
-  let [preamble, [left, right]] = rewriteExpressionsAndReduce(
-    scope,
-    expression.left,
-    expression.right
+): types.LogicalExpression {
+  return types.logicalExpression(
+    expression.operator,
+    rewriteExpression(expression.left, scope),
+    rewriteExpression(expression.right, scope)
   );
-  return {
-    preamble,
-    value: types.logicalExpression(expression.operator, left, right),
-  };
 }

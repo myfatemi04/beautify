@@ -1,9 +1,5 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
-import {
-  rewriteExpression,
-  rewriteExpressionsAndReduce,
-} from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
 import { rewriteStatementArray } from "./rewriteStatementArray";
 import { Scope } from "./scope";
 
@@ -13,9 +9,7 @@ export function rewriteSwitchCase(
 ): types.SwitchCase {
   // preambles are NOT allowed
   // if test = undefined, it's a "default" case
-  let test = case_.test
-    ? rewriteExpression(case_.test, scope).value
-    : undefined;
+  let test = case_.test ? rewriteExpression(case_.test, scope) : undefined;
   let consequent = rewriteStatementArray(case_.consequent, scope);
 
   return types.switchCase(test, consequent);
@@ -24,14 +18,8 @@ export function rewriteSwitchCase(
 export function rewriteSwitchStatement(
   statement: types.SwitchStatement,
   scope: Scope
-): Preambleable<types.SwitchStatement> {
-  let [preamble, [discriminant]] = rewriteExpressionsAndReduce(
-    scope,
-    statement.discriminant
-  );
+): types.SwitchStatement {
+  let discriminant = rewriteExpression(statement.discriminant, scope);
   let cases = statement.cases.map((case_) => rewriteSwitchCase(case_, scope));
-  return {
-    preamble,
-    value: types.switchStatement(discriminant, cases),
-  };
+  return types.switchStatement(discriminant, cases);
 }

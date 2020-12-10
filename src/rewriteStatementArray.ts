@@ -58,13 +58,7 @@ export function rewriteStatementArray(
 ) {
   let statements_: types.Statement[] = [];
   for (let statement of statements) {
-    let { preamble, value: statement_ } = rewriteStatement(statement, scope);
-
-    statements_ = statements_.concat(preamble);
-
-    if (statement_) {
-      statements_.push(statement_);
-    }
+    statements_.push(...rewriteStatement(statement, scope));
   }
 
   return statements_;

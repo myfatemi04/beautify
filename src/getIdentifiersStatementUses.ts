@@ -150,10 +150,10 @@ export function getIdentifiersStatementUses(
       }
 
     case "FunctionDeclaration":
-      return combine(
-        getIdentifiersFunctionParamsUse(statement.params),
-        getIdentifiersStatementUses(statement.body)
-      );
+      return [
+        ...getIdentifiersFunctionParamsUse(statement.params),
+        ...getIdentifiersStatementUses(statement.body),
+      ];
 
     case "TryStatement": {
       let identifiers = [];

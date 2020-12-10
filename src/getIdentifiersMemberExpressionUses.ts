@@ -9,10 +9,14 @@ export function getIdentifiersMemberExpressionUses(
   let identifiers: IdentifierAccess[] = [];
   identifiers.push(...getIdentifiersExpressionUses(expression.object));
 
-  if (types.isPrivateName(expression.property)) {
-    identifiers.push(...getIdentifiersPrivateNameUses(expression.property));
+  if (expression.computed) {
+    if (types.isPrivateName(expression.property)) {
+      identifiers.push(...getIdentifiersPrivateNameUses(expression.property));
+    } else {
+      identifiers.push(...getIdentifiersExpressionUses(expression.property));
+    }
   } else {
-    identifiers.push(...getIdentifiersExpressionUses(expression.property));
+    // don't do anything if not computed
   }
 
   return identifiers;

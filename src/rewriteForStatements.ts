@@ -1,6 +1,5 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
-import { rewriteExpressionsAndConcat } from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
 import {
   rewriteStatement,
   rewriteStatementWrapWithBlock,
@@ -17,39 +16,33 @@ import { Scope } from "./scope";
 export function rewriteForStatement(
   statement: types.ForStatement,
   scope: Scope
-): Preambleable<types.ForStatement> {
+): types.Statement[] {
   let preamble = [];
   let init = undefined;
   let test = statement.test;
 
   if (statement.init) {
     if (statement.init.type === "VariableDeclaration") {
-      let { preamble: preamble_ } = rewriteVariableDeclaration(
-        statement.init,
-        scope
-      );
-      if (preamble_.length > 0) {
-        init = preamble_[0];
-        preamble = preamble.concat(preamble_.slice(1));
-      }
+      let declarations = rewriteVariableDeclaration(statement.init, scope);
+      preamble.push(...declarations);
     } else {
-      init = rewriteExpressionsAndConcat(statement.init, scope, preamble);
+      init = rewriteExpression(statement.init, scope);
     }
   }
 
   if (statement.test) {
-    test = rewriteExpressionsAndConcat(statement.test, scope, preamble);
+    test = rewriteExpression(statement.test, scope);
   }
 
-  return {
-    preamble,
-    value: types.forStatement(
+  return [
+    ...preamble,
+    types.forStatement(
       init,
       test,
       statement.update,
       rewriteStatementWrapWithBlock(statement.body, scope)
     ),
-  };
+  ];
 }
 
 /**
@@ -62,17 +55,13 @@ export function rewriteForStatement(
 export function rewriteForOfInStatement(
   statement: types.ForOfStatement | types.ForInStatement,
   scope: Scope
-): Preambleable<types.ForInStatement | types.ForOfStatement> {
-  let preamble = [];
+): types.ForInStatement | types.ForOfStatement {
   let rewrittenBody = rewriteStatement(statement.body, scope);
-  let right = rewriteExpressionsAndConcat(statement.right, scope, preamble);
+  let right = rewriteExpression(statement.right, scope);
 
   return {
-    preamble,
-    value: {
-      ...statement,
-      body: rewrittenBody.value,
-      right,
-    },
+    ...statement,
+    body: types.blockStatement(rewrittenBody),
+    right,
   };
 }

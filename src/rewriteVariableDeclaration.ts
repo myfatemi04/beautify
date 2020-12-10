@@ -1,6 +1,5 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
-import { rewriteExpressionsAndConcat } from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
 import { Scope } from "./scope";
 
 /**
@@ -12,27 +11,24 @@ import { Scope } from "./scope";
 export function rewriteVariableDeclaration(
   statement: types.VariableDeclaration,
   scope: Scope
-): Preambleable<types.VariableDeclaration> {
-  let declarations: types.Statement[] = [];
+): types.Statement[] {
+  let statements: types.Statement[] = [];
   for (let declarator of statement.declarations) {
     let init = declarator.init;
 
     // Rewrite the initializer
     if (init) {
       // Concat to declarations if any additional setup is needed
-      init = rewriteExpressionsAndConcat(init, scope, declarations);
+      init = rewriteExpression(init, scope);
     }
 
     // Add the code to initialize the variable
-    declarations.push(
+    statements.push(
       types.variableDeclaration(statement.kind, [
         types.variableDeclarator(declarator.id, init),
       ])
     );
   }
 
-  return {
-    preamble: declarations,
-    value: undefined,
-  };
+  return statements;
 }

@@ -1,6 +1,7 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
-import { rewriteExpressionsAndConcat } from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
+import { rewriteExpressionStatement } from "./rewriteExpressionStatement";
+import { rewriteSequenceExpressionStatementGetLastValue } from "./rewriteSequenceExpression";
 import { rewriteStatementWrapWithBlock } from "./rewriteStatement";
 import { Scope } from "./scope";
 
@@ -14,14 +15,16 @@ import { Scope } from "./scope";
 export function rewriteIfStatement(
   statement: types.IfStatement,
   scope: Scope
-): Preambleable<types.IfStatement> {
-  let test = statement.test;
+): types.Statement[] {
   let preamble = [];
+  let { test, consequent, alternate } = statement;
 
-  test = rewriteExpressionsAndConcat(test, scope, preamble);
-
-  let consequent = statement.consequent;
-  let alternate = statement.alternate;
+  // split up "if" sequences
+  if (types.isSequenceExpression(test)) {
+    let rewritten = rewriteSequenceExpressionStatementGetLastValue(test, scope);
+    test = rewritten.value;
+    preamble = rewritten.preceeding;
+  }
 
   if (consequent) {
     consequent = rewriteStatementWrapWithBlock(consequent, scope);
@@ -31,8 +34,5 @@ export function rewriteIfStatement(
     alternate = rewriteStatementWrapWithBlock(alternate, scope);
   }
 
-  return {
-    preamble,
-    value: types.ifStatement(test, consequent, alternate),
-  };
+  return [...preamble, types.ifStatement(test, consequent, alternate)];
 }

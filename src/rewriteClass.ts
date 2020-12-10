@@ -1,5 +1,4 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
 import { rewriteBlockStatement } from "./rewriteBlockStatement";
 import { rewriteExpression } from "./rewriteExpression";
 import { Scope } from "./scope";
@@ -17,30 +16,27 @@ export function rewriteClassMethod(
 export function rewriteClassPrivateProperty(
   property: types.ClassPrivateProperty,
   scope: Scope
-): Preambleable<types.ClassPrivateProperty> {
-  let { preamble, value } = rewriteExpression(property.value, scope);
-
-  return {
-    preamble,
-    value: types.classPrivateProperty(
-      property.key,
-      value,
-      property.decorators,
-      property.static
-    ),
-  };
+): types.ClassPrivateProperty {
+  return types.classPrivateProperty(
+    property.key,
+    rewriteExpression(property.value, scope),
+    property.decorators,
+    property.static
+  );
 }
 
 export function rewriteClassProperty(
   property: types.ClassProperty,
   scope: Scope
-): Preambleable<types.ClassProperty> {
-  let { preamble, value } = rewriteExpression(property.value, scope);
-
-  return {
-    preamble,
-    value: types.classProperty(property.key, value),
-  };
+): types.ClassProperty {
+  return types.classProperty(
+    property.key,
+    rewriteExpression(property.value, scope),
+    property.typeAnnotation,
+    property.decorators,
+    property.computed,
+    property.static
+  );
 }
 
 export function rewriteClassBody(
@@ -55,11 +51,9 @@ export function rewriteClassBody(
     ) {
       body.push(rewriteClassMethod(expression, scope));
     } else if (expression.type === "ClassProperty") {
-      let { preamble, value } = rewriteClassProperty(expression, scope);
-      body.push(...preamble, value);
+      body.push(rewriteClassProperty(expression, scope));
     } else if (expression.type === "ClassPrivateProperty") {
-      let { preamble, value } = rewriteClassPrivateProperty(expression, scope);
-      body.push(...preamble, value);
+      body.push(rewriteClassPrivateProperty(expression, scope));
     } else {
       // tsDeclareMethod, tsIndexSignature
       body.push(expression, scope);

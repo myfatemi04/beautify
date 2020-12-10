@@ -1,6 +1,5 @@
 import * as types from "@babel/types";
-import Preambleable from "./Preambleable";
-import { rewriteExpression, rewriteExpressionsAndConcat } from "./rewriteExpression";
+import { rewriteExpression } from "./rewriteExpression";
 import { Scope } from "./scope";
 
 /**
@@ -11,7 +10,7 @@ import { Scope } from "./scope";
 export function rewriteCallExpression(
   expression: types.CallExpression,
   scope: Scope
-): Preambleable<types.CallExpression> {
+): types.CallExpression {
   let preamble = [];
   let args = [];
   for (let arg of expression.arguments) {
@@ -22,19 +21,14 @@ export function rewriteCallExpression(
     ) {
       args.push(arg);
     } else {
-      args.push(rewriteExpressionsAndConcat(arg, scope, preamble));
+      args.push(rewriteExpression(arg, scope));
     }
   }
 
   let calleeExpression = expression.callee;
   if (expression.callee.type !== "V8IntrinsicIdentifier") {
-    let rewrittenCallee = rewriteExpression(expression.callee, scope);
-    preamble = preamble.concat(rewrittenCallee.preamble);
-    calleeExpression = rewrittenCallee.value;
+    calleeExpression = rewriteExpression(expression.callee, scope);
   }
 
-  return {
-    preamble,
-    value: types.callExpression(calleeExpression, args),
-  };
+  return types.callExpression(calleeExpression, args);
 }

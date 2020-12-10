@@ -17,7 +17,7 @@ export function rewriteArrowFunctionExpression(
   if (types.isExpression(expression.body)) {
     return types.arrowFunctionExpression(
       expression.params,
-      rewriteExpression(expression.body, scope).value
+      rewriteExpression(expression.body, scope)
     );
   } else {
     return types.arrowFunctionExpression(
