@@ -4,10 +4,14 @@ import {
   rewriteObjectProperty,
 } from "./objectProperty";
 import { rewriteObjectMethod } from "./objectMethod";
-import { rewriteSpreadElement } from "./spreadElement";
+import {
+  getIdentifiersSpreadElementUses,
+  rewriteSpreadElement,
+} from "./spreadElement";
 import { Scope } from "./scope";
 import { combine } from "./combine";
 import { getIdentifiersExpressionUses } from "./expression";
+import { IdentifierAccess } from "./IdentifierAccess";
 
 export function rewriteObjectExpression(
   expression: types.ObjectExpression,
@@ -32,19 +36,13 @@ export function rewriteObjectExpression(
 
 export function getIdentifiersObjectExpressionUses(
   expression: types.ObjectExpression
-) {
-  let identifiers = [];
+): IdentifierAccess[] {
+  let identifiers: IdentifierAccess[] = [];
   for (let property of expression.properties) {
     if (property.type === "SpreadElement") {
-      identifiers = combine(
-        identifiers,
-        getIdentifiersExpressionUses(property)
-      );
+      identifiers.push(...getIdentifiersSpreadElementUses(property));
     } else if (property.type === "ObjectProperty") {
-      identifiers = combine(
-        identifiers,
-        getIdentifiersObjectPropertyUses(property)
-      );
+      identifiers.push(...getIdentifiersObjectPropertyUses(property));
     }
   }
   return identifiers;

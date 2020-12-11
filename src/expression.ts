@@ -41,7 +41,7 @@ import { Scope } from "./scope";
 import { getIdentifiersArgumentsUse } from "./arguments";
 
 export function getIdentifiersExpressionUses(
-  expression: types.Expression | types.JSXNamespacedName
+  expression: types.Expression
 ): IdentifierAccess[] {
   switch (expression.type) {
     case "UnaryExpression":

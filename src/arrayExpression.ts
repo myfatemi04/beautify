@@ -1,7 +1,8 @@
 import * as types from "@babel/types";
-import { getIdentifiersExpressionsUse, rewriteExpression } from "./expression";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { IdentifierAccess } from "./IdentifierAccess";
 import { Scope } from "./scope";
+import { getIdentifiersSpreadElementUses } from "./spreadElement";
 
 export function rewriteArrayExpression(
   expression: types.ArrayExpression,
@@ -24,7 +25,20 @@ export function getIdentifiersArrayExpressionUses(
   expression: types.ArrayExpression
 ): IdentifierAccess[] {
   // some elements in array expressions can be null; filter them out
-  return getIdentifiersExpressionsUse(
-    expression.elements.filter((element) => element != null)
-  );
+  let identifiers: IdentifierAccess[] = [];
+  for (let element of expression.elements) {
+    if (element == null) {
+      continue;
+    }
+
+    if (types.isExpression(element)) {
+      identifiers.push(...getIdentifiersExpressionUses(element));
+    } else if (types.isSpreadElement(element)) {
+      identifiers.push(...getIdentifiersSpreadElementUses(element));
+    } else {
+      throw new Error("ArrayExpression cannot have element " + element);
+    }
+  }
+
+  return identifiers;
 }

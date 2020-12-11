@@ -4,7 +4,10 @@ import generate from "@babel/generator";
 
 import { rewriteScopedStatementArray } from "./statementArray";
 
-let inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
+let infile = process.argv[2] || "in.js";
+let outfile = process.argv[3] || "out.js";
+
+let inputCode = fs.readFileSync(infile, { encoding: "utf8" });
 
 let { program } = parser.parse(inputCode);
 
@@ -15,4 +18,4 @@ let refactored = {
 
 let { code } = generate(refactored);
 
-fs.writeFileSync("out.js", code, { encoding: "utf8" });
+fs.writeFileSync(outfile, code, { encoding: "utf8" });
