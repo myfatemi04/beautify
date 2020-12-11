@@ -47,8 +47,18 @@ export function getIdentifiersExpressionUses(
 ): IdentifierAccess[] {
   switch (expression.type) {
     case "UnaryExpression":
-    case "UpdateExpression":
       return getIdentifiersExpressionUses(expression.argument);
+
+    case "UpdateExpression":
+      if (expression.argument.type === "Identifier") {
+        return [{ type: "set", id: expression.argument }];
+      } else if (expression.argument.type === "MemberExpression") {
+        return getIdentifiersMemberExpressionUses(expression.argument);
+      } else {
+        throw new Error(
+          "Invalid update exception argument: " + expression.argument
+        );
+      }
 
     case "SequenceExpression":
       return getIdentifiersSequenceExpressionUses(expression);

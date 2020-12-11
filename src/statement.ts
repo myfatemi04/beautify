@@ -52,6 +52,7 @@ import {
   getIdentifiersThrowStatementUses,
   rewriteThrowStatement,
 } from "./throwStatement";
+import { removeDefinedIdentifiers } from "./removeDefinedIdentifiers";
 
 export function getIdentifiersStatementsUse(
   statements: types.Statement[]
@@ -84,7 +85,9 @@ export function getIdentifiersStatementUses(
       return getIdentifiersStatementUses(statement.body);
 
     case "BlockStatement":
-      return getIdentifiersStatementsUse(statement.body);
+      return removeDefinedIdentifiers(
+        getIdentifiersStatementsUse(statement.body)
+      );
 
     case "IfStatement":
       return getIdentifiersIfStatementUses(statement);

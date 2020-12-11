@@ -2,6 +2,7 @@ import * as types from "@babel/types";
 import { getIdentifiersExpressionUses } from "./expression";
 import { getIdentifiersFunctionParamsUse } from "./functionParams";
 import { IdentifierAccess } from "./IdentifierAccess";
+import { removeDefinedIdentifiers } from "./removeDefinedIdentifiers";
 import { getIdentifiersStatementUses } from "./statement";
 
 export type Method =
@@ -25,17 +26,5 @@ export function getIdentifiersMethodUses(method: Method): IdentifierAccess[] {
   // now, any identifiers that say "define", we must remove subsequent references
 
   // find all identifiers that say "define"
-  let definedIdentifiers = {};
-  let newIdentifiers: IdentifierAccess[] = [];
-  for (let access of identifiers) {
-    if (!definedIdentifiers[access.id.name]) {
-      if (access.type === "define") {
-        definedIdentifiers[access.id.name] = true;
-      } else {
-        newIdentifiers.push(access);
-      }
-    }
-  }
-
-  return newIdentifiers;
+  return removeDefinedIdentifiers(identifiers);
 }

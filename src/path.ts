@@ -1,4 +1,5 @@
 import * as types from "@babel/types";
+import generate from "@babel/generator";
 import expressionHasSideEffects from "./expressionHasSideEffects";
 import { getAllDeclaredIdentifiers } from "./getAllDeclaredIdentifiers";
 import { getIdentifiersLValUses } from "./lval";
@@ -75,14 +76,16 @@ export class PathNode {
   }
 
   isVariableUsedLater(name: string): boolean {
-    for (let statement of this.body.slice(this.index + 1)) {
+    for (let statement of this.getFollowingStatements()) {
       let identifierAccesses = getIdentifiersStatementUses(statement);
       for (let access of identifierAccesses) {
         if (access.id.name === name) {
           if (access.type === "get") {
             return true;
-          } else {
+          } else if (access.type === "set") {
             return false;
+          } else {
+            // it's a "define" type, so we don't know anything from here
           }
         }
       }
@@ -95,8 +98,12 @@ export class PathNode {
     }
   }
 
+  getFollowingStatements() {
+    return this.body.slice(this.index + 1);
+  }
+
   isVariableUpdatedLater(name: string): boolean {
-    for (let statement of this.body.slice(this.index)) {
+    for (let statement of this.getFollowingStatements()) {
       let identifierAccesses = getIdentifiersStatementUses(statement);
       for (let access of identifierAccesses) {
         if (access.id.name === name && access.type === "set") {
@@ -126,6 +133,7 @@ export class PathNode {
     this.index = 0;
 
     this.moveDeclarationsInward();
+    this.removeUnusedIdentifiers();
   }
 
   moveDeclarationsInward() {
@@ -143,16 +151,6 @@ export class PathNode {
           if (types.isAssignmentExpression(expression, { operator: "=" })) {
             if (types.isIdentifier(expression.left)) {
               let name = expression.left.name;
-
-              // the value is unused:
-              if (!this.isVariableUsedLater(name)) {
-                // check if the expression actually does something
-                if (expressionHasSideEffects(expression.right)) {
-                  body.push(types.expressionStatement(expression.right));
-                }
-
-                continue;
-              }
 
               if (
                 !this.isVariableUsedOutsideThisBlock(name) &&
@@ -174,8 +172,8 @@ export class PathNode {
                   )
                 );
 
-                this.blockDeclaredVariables[name] = true;
-                continue;
+                this.declareInBlock(name);
+                break;
               }
             }
           }
@@ -188,11 +186,13 @@ export class PathNode {
           if (statement.declarations.length === 1) {
             let { id, init } = statement.declarations[0];
             if (types.isIdentifier(id)) {
-              if (!this.isVariableUsedLater(id.name)) {
-                // if (expressionHasSideEffects(init)) {
-                //   statementsUpdated.push(types.expressionStatement(init));
-                // }
-                // continue;
+              // if (init) because const needs initializer
+              if (init && !this.isVariableUpdatedLater(id.name)) {
+                body.push(
+                  types.variableDeclaration("const", statement.declarations)
+                );
+
+                break;
               }
             }
           }
@@ -202,7 +202,9 @@ export class PathNode {
               "let",
               statement.declarations.map((declarator) => {
                 for (let identifier of getIdentifiersLValUses(declarator.id)) {
-                  this.blockDeclaredVariables[identifier.id.name] = true;
+                  if (identifier.type === "set") {
+                    this.declareInBlock(identifier.id.name);
+                  }
                 }
 
                 return declarator;
@@ -230,15 +232,65 @@ export class PathNode {
         case "ClassDeclaration":
         case "SwitchStatement": // TODO take care of case consequents being stupid mfs
           body.push(statement);
-          continue;
+          break;
 
         case "EmptyStatement":
-          continue;
+          break;
+
+        default:
+          console.log("moveDeclarations() needs statement", statement);
+          body.push(statement);
       }
 
-      console.log("moveDeclarations() needs statement", statement);
+      this.index += 1;
+    }
 
-      body.push(statement);
+    this.body = body;
+  }
+
+  removeUnusedIdentifiers() {
+    this.index = 0;
+    let body = [];
+    for (let statement of this.body) {
+      checkBlock: {
+        if (types.isVariableDeclaration(statement)) {
+          for (let declaration of statement.declarations) {
+            if (types.isIdentifier(declaration.id)) {
+              if (!this.isVariableUsedLater(declaration.id.name)) {
+                // check if the initializer has side effects
+                if (expressionHasSideEffects(declaration.init)) {
+                  body.push(types.expressionStatement(declaration.init));
+                }
+                console.log(
+                  "variable is not used later: " + generate(statement).code
+                );
+                break checkBlock;
+              } else {
+                console.log(
+                  "variable is used later: " + generate(statement).code
+                );
+              }
+            }
+          }
+        } else if (types.isExpressionStatement(statement)) {
+          let expression = statement.expression;
+          if (types.isAssignmentExpression(expression, { operator: "=" })) {
+            if (types.isIdentifier(expression.left)) {
+              // the value is unused:
+              if (!this.isVariableUsedLater(expression.left.name)) {
+                // check if the expression actually does something
+                if (expressionHasSideEffects(expression.right)) {
+                  body.push(types.expressionStatement(expression.right));
+                }
+                break checkBlock;
+              }
+            }
+          }
+        }
+
+        body.push(statement);
+      }
+
       this.index += 1;
     }
 
