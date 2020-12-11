@@ -70,3 +70,16 @@ export function rewriteVariableDeclaration(
 
   return statements;
 }
+
+export function variableDeclarationToAssignmentExpressions(
+  declaration: types.VariableDeclaration
+): types.AssignmentExpression[] {
+  let assignments: types.AssignmentExpression[] = [];
+  for (let declarator of declaration.declarations) {
+    assignments.push(
+      types.assignmentExpression("=", declarator.id, declarator.init)
+    );
+  }
+
+  return assignments;
+}

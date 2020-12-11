@@ -3,6 +3,10 @@ import * as types from "@babel/types";
 export default function expressionHasSideEffects(
   expression: types.Expression
 ): boolean {
+  if (expression == null) {
+    return false;
+  }
+
   if (types.isMemberExpression(expression)) {
     // it might call a "get" method, who knows
     return true;
@@ -40,27 +44,41 @@ export default function expressionHasSideEffects(
     for (let property of expression.properties) {
       // these don't have side effects, so we check if
       // the property is NOT one of those
-      if (
-        property.type !== "SpreadElement" &&
-        property.type !== "ObjectMethod"
-      ) {
-        if (expressionHasSideEffects(property.key)) {
+      if (types.isSpreadElement(property)) {
+        if (expressionHasSideEffects(property.argument)) {
           return true;
         }
 
-        if (types.isPattern(property.value)) {
-          throw new Error("Pattern found in ObjectProperty");
-        }
+        continue;
+      }
 
-        if (types.isRestElement(property.value)) {
-          throw new Error("RestElement found in ObjectProperty");
-        }
+      if (types.isObjectMethod(property)) {
+        return false;
+      }
 
-        if (expressionHasSideEffects(property.value)) {
-          return true;
-        }
+      if (expressionHasSideEffects(property.key)) {
+        return true;
+      }
+
+      if (types.isPattern(property.value)) {
+        throw new Error("Pattern found in ObjectProperty");
+      }
+
+      if (types.isRestElement(property.value)) {
+        throw new Error("RestElement found in ObjectProperty");
+      }
+
+      if (expressionHasSideEffects(property.value)) {
+        return true;
       }
     }
+  }
+
+  if (
+    types.isFunctionExpression(expression) ||
+    types.isArrowFunctionExpression(expression)
+  ) {
+    return false;
   }
 
   return true;

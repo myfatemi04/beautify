@@ -1,7 +1,7 @@
 import * as types from "@babel/types";
 import { rewriteExpression } from "./expression";
-import { rewriteStatementWrapWithBlock } from "./statement";
 import { PathNode } from "./path";
+import { rewriteBlockStatement } from "./blockStatement";
 
 /**
  * Rewrites the body of an arrow function
@@ -22,7 +22,7 @@ export function rewriteArrowFunctionExpression(
   } else {
     return types.arrowFunctionExpression(
       expression.params,
-      rewriteStatementWrapWithBlock(expression.body, path)
+      rewriteBlockStatement(expression.body, path)
     );
   }
 }

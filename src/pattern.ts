@@ -4,6 +4,7 @@ import { getIdentifiersLValUses } from "./lval";
 import { getIdentifiersPatternLikeUses } from "./patternLike";
 import { getIdentifiersRestElementUses } from "./restElement";
 import { IdentifierAccess } from "./IdentifierAccess";
+import expressionHasSideEffects from "./expressionHasSideEffects";
 
 /*
  * PATTERNS

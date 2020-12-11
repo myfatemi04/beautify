@@ -7,20 +7,22 @@ import { getIdentifiersStatementUses, rewriteStatement } from "./statement";
 export class PathNode {
   body: types.Statement[];
   parent: PathNode | null;
-  path: boolean;
+  scoped: boolean;
   index: number = 0;
   blockDeclaredVariables: { [name: string]: boolean } = {};
   suggestedVariableNames: { [name: string]: string } = {};
 
   constructor(body: types.Statement[], scoped: boolean, parent?: PathNode) {
     this.body = body;
-    this.path = scoped;
+    this.scoped = scoped;
 
     if (parent) {
       this.parent = parent;
     } else {
       this.parent = null;
     }
+
+    this.hoistAll();
   }
 
   hasVariableBeenDeclared(name: string) {
@@ -111,14 +113,17 @@ export class PathNode {
   }
 
   rewrite() {
-    let statements_: types.Statement[] = [];
+    this.hoistAll();
+
+    let newBody: types.Statement[] = [];
     this.index = 0;
     for (let statement of this.body) {
-      statements_.push(...rewriteStatement(statement, this));
+      newBody.push(...rewriteStatement(statement, this));
       this.index++;
     }
 
-    this.body = statements_;
+    this.body = newBody;
+    this.index = 0;
 
     this.moveDeclarationsInward();
   }
@@ -127,7 +132,6 @@ export class PathNode {
     let statementsUpdated: types.Statement[] = [];
     this.index = 0;
     for (let statement of this.body) {
-      this.index += 1;
       // Here is where things get good
 
       // When a variable value is set, check to see if
@@ -165,7 +169,7 @@ export class PathNode {
                     this.isVariableUpdatedLater(name) ? "let" : "const",
                     [
                       types.variableDeclarator(
-                        types.identifier(name),
+                        expression.left,
                         expression.right
                       ),
                     ]
@@ -179,6 +183,36 @@ export class PathNode {
           }
 
           statementsUpdated.push(statement);
+          continue;
+        }
+
+        case "VariableDeclaration": {
+          if (statement.declarations.length === 1) {
+            let { id, init } = statement.declarations[0];
+            if (types.isIdentifier(id)) {
+              if (!this.isVariableUsedLater(id.name)) {
+                if (expressionHasSideEffects(init)) {
+                  statementsUpdated.push(types.expressionStatement(init));
+                }
+
+                continue;
+              }
+            }
+          }
+
+          statementsUpdated.push(
+            types.variableDeclaration(
+              "let",
+              statement.declarations.map((declarator) => {
+                for (let identifier of getIdentifiersLValUses(declarator.id)) {
+                  this.blockDeclaredVariables[identifier.id.name] = true;
+                }
+
+                return declarator;
+              })
+            )
+          );
+
           continue;
         }
 
@@ -201,22 +235,6 @@ export class PathNode {
           statementsUpdated.push(statement);
           continue;
 
-        case "VariableDeclaration":
-          statementsUpdated.push(
-            types.variableDeclaration(
-              "let",
-              statement.declarations.map((declarator) => {
-                for (let identifier of getIdentifiersLValUses(declarator.id)) {
-                  this.blockDeclaredVariables[identifier.id.name] = true;
-                }
-
-                return declarator;
-              })
-            )
-          );
-
-          continue;
-
         case "EmptyStatement":
           continue;
       }
@@ -224,62 +242,77 @@ export class PathNode {
       console.log("moveDeclarations() needs statement", statement);
 
       statementsUpdated.push(statement);
+      this.index += 1;
     }
 
-    return statementsUpdated;
-  }
-}
-
-export function hoistAll(path: PathNode): void {
-  for (let statement of path.body) {
-    hoist(statement, path);
-  }
-}
-
-export function hoist(statement: types.Statement, path: PathNode): void {
-  if (statement == null) {
-    return;
+    this.body = statementsUpdated;
   }
 
-  switch (statement.type) {
-    case "VariableDeclaration":
-      // Hoist "var" declarations
-      if (statement.kind === "var") {
-        let identifiers = getAllDeclaredIdentifiers(statement);
+  declareInBlock(name: string) {
+    this.blockDeclaredVariables[name] = true;
+  }
 
-        for (let identifier of identifiers) {
-          path.blockDeclaredVariables[identifier.name] = true;
+  declareInScope(name: string) {
+    if (this.scoped) {
+      this.declareInBlock(name);
+    } else {
+      if (this.parent) {
+        this.parent.declareInScope(name);
+      } else {
+        throw new Error("Could not declare identifier in scope: " + name);
+      }
+    }
+  }
+
+  private hoistAll(): void {
+    for (let statement of this.body) {
+      this.hoist(statement);
+    }
+  }
+
+  private hoist(statement: types.Statement): void {
+    if (statement == null) {
+      return;
+    }
+
+    switch (statement.type) {
+      case "VariableDeclaration":
+        // Hoist "var" declarations
+        if (statement.kind === "var") {
+          for (let identifier of getAllDeclaredIdentifiers(statement)) {
+            this.declareInScope(identifier.name);
+          }
         }
-      }
-      break;
+        break;
 
-    case "BlockStatement":
-      hoistAll(new PathNode(statement.body, true, path));
-      break;
+      case "BlockStatement":
+        new PathNode(statement.body, false, this).hoistAll();
+        break;
 
-    case "IfStatement":
-      hoist(statement.consequent, path);
-      hoist(statement.alternate, path);
-      break;
+      case "IfStatement":
+        this.hoist(statement.consequent);
+        this.hoist(statement.alternate);
+        break;
 
-    case "DoWhileStatement":
-    case "WhileStatement":
-      hoist(statement.body, path);
-      break;
+      case "DoWhileStatement":
+      case "WhileStatement":
+        this.hoist(statement.body);
+        break;
 
-    case "ForStatement":
-      if (types.isVariableDeclaration(statement.init)) {
-        hoist(statement.init, path);
-      }
-      hoist(statement.body, path);
-      break;
+      case "ForStatement":
+        if (types.isVariableDeclaration(statement.init)) {
+          this.hoist(statement.init);
+        }
+        this.hoist(statement.body);
+        break;
 
-    case "ForOfStatement":
-    case "ForInStatement":
-      if (types.isVariableDeclaration(statement.left)) {
-        hoist(statement.left, path);
-      }
-      hoist(statement.body, path);
-      break;
+      case "ForOfStatement":
+      case "ForInStatement":
+        if (types.isVariableDeclaration(statement.left)) {
+          this.hoist(statement.left);
+        }
+        this.hoist(statement.body);
+        break;
+    }
   }
 }
