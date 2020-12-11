@@ -91,6 +91,12 @@ export class PathNode {
       }
     }
 
+    // if this variable was declared this block, it's impossible for it to have
+    // been accessed outside
+    if (this.blockDeclaredVariables[name]) {
+      return false;
+    }
+
     if (this.parent) {
       return this.parent.isVariableUsedLater(name);
     } else {
@@ -187,7 +193,9 @@ export class PathNode {
             let { id, init } = statement.declarations[0];
             if (types.isIdentifier(id)) {
               // if (init) because const needs initializer
+              // convert "let" to "const"
               if (init && !this.isVariableUpdatedLater(id.name)) {
+                this.declareInBlock(id.name);
                 body.push(
                   types.variableDeclaration("const", statement.declarations)
                 );
@@ -251,6 +259,8 @@ export class PathNode {
   removeUnusedIdentifiers() {
     this.index = 0;
     let body = [];
+    let foundUnused = false;
+
     for (let statement of this.body) {
       checkBlock: {
         if (types.isVariableDeclaration(statement)) {
@@ -261,15 +271,10 @@ export class PathNode {
                 if (expressionHasSideEffects(declaration.init)) {
                   body.push(types.expressionStatement(declaration.init));
                 }
-                console.log(
-                  "variable is not used later: " + generate(statement).code
-                );
+                foundUnused = true;
                 break checkBlock;
-              } else {
-                console.log(
-                  "variable is used later: " + generate(statement).code
-                );
               }
+              // otherwise, variable is used
             }
           }
         } else if (types.isExpressionStatement(statement)) {
@@ -282,8 +287,10 @@ export class PathNode {
                 if (expressionHasSideEffects(expression.right)) {
                   body.push(types.expressionStatement(expression.right));
                 }
+                foundUnused = true;
                 break checkBlock;
               }
+              // otherwise, variable is used
             }
           }
         }
@@ -295,6 +302,12 @@ export class PathNode {
     }
 
     this.body = body;
+
+    // if another unused identifier is found, remove them again
+    if (foundUnused) {
+      console.log("removing unused variable again");
+      this.removeUnusedIdentifiers();
+    }
   }
 
   declareInBlock(name: string) {
