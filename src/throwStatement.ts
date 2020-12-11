@@ -1,5 +1,6 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
+import { IdentifierAccess } from "./IdentifierAccess";
 import { Scope } from "./scope";
 
 /**
@@ -14,4 +15,10 @@ export function rewriteThrowStatement(
   scope: Scope
 ): types.ThrowStatement {
   return types.throwStatement(rewriteExpression(statement.argument, scope));
+}
+
+export function getIdentifiersThrowStatementUses(
+  statement: types.ThrowStatement
+): IdentifierAccess[] {
+  return getIdentifiersExpressionUses(statement.argument);
 }

@@ -1,7 +1,11 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
-import { rewriteStatementWrapWithBlock } from "./statement";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
+import {
+  getIdentifiersStatementUses,
+  rewriteStatementWrapWithBlock,
+} from "./statement";
 import { Scope } from "./scope";
+import { IdentifierAccess } from "./IdentifierAccess";
 
 export function rewriteDoWhileStatement(
   statement: types.DoWhileStatement,
@@ -22,4 +26,13 @@ export function rewriteWhileStatement(
   let test = rewriteExpression(statement.test, scope);
 
   return types.whileStatement(test, body);
+}
+
+export function getIdentifiersWhileDoWhileStatementUses(
+  statement: types.WhileStatement | types.DoWhileStatement
+): IdentifierAccess[] {
+  return [
+    ...getIdentifiersExpressionUses(statement.test),
+    ...getIdentifiersStatementUses(statement.body),
+  ];
 }

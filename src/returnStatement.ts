@@ -1,8 +1,9 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { rewriteIfStatement } from "./ifStatement";
 import { rewriteSequenceExpressionStatementGetLastValue } from "./sequenceExpression";
 import { Scope } from "./scope";
+import { IdentifierAccess } from "./IdentifierAccess";
 
 /**
  * Rewrites the argument of a return statement.
@@ -44,5 +45,15 @@ export function rewriteReturnStatement(
     return [
       types.returnStatement(rewriteExpression(statement.argument, scope)),
     ];
+  }
+}
+
+export function getIdentifiersReturnStatementUses(
+  statement: types.ReturnStatement
+): IdentifierAccess[] {
+  if (statement.argument) {
+    return getIdentifiersExpressionUses(statement.argument);
+  } else {
+    return [];
   }
 }

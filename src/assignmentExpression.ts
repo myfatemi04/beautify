@@ -1,5 +1,7 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
+import { IdentifierAccess } from "./IdentifierAccess";
+import { getIdentifiersLValUses } from "./lval";
 import { Scope } from "./scope";
 
 export function rewriteAssignmentExpression(
@@ -27,4 +29,14 @@ export function rewriteAssignmentExpression(
     expression.left,
     rewriteExpression(expression.right, scope)
   );
+}
+
+export function getIdentifiersAssignmentExpressionUses(
+  expression: types.AssignmentExpression
+): IdentifierAccess[] {
+  // Get all identifiers of the left hand side.
+  let identifiers: IdentifierAccess[] = [];
+  identifiers.push(...getIdentifiersLValUses(expression.left));
+  identifiers.push(...getIdentifiersExpressionUses(expression.right));
+  return identifiers;
 }

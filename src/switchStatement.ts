@@ -1,7 +1,9 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { rewriteStatementArray } from "./statementArray";
 import { Scope } from "./scope";
+import { IdentifierAccess } from "./IdentifierAccess";
+import { getIdentifiersSwitchCaseUses } from "./switchCase";
 
 export function rewriteSwitchCase(
   case_: types.SwitchCase,
@@ -22,4 +24,19 @@ export function rewriteSwitchStatement(
   let discriminant = rewriteExpression(statement.discriminant, scope);
   let cases = statement.cases.map((case_) => rewriteSwitchCase(case_, scope));
   return types.switchStatement(discriminant, cases);
+}
+
+export function getIdentifiersSwitchStatementUses(
+  statement: types.SwitchStatement
+): IdentifierAccess[] {
+  types.assertSwitchStatement(statement);
+
+  let identifiers: IdentifierAccess[] = [];
+  identifiers.push(...getIdentifiersExpressionUses(statement.discriminant));
+
+  for (let case_ of statement.cases) {
+    identifiers.push(...getIdentifiersSwitchCaseUses(case_));
+  }
+
+  return identifiers;
 }

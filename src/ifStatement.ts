@@ -1,9 +1,15 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { rewriteExpressionStatement } from "./expressionStatement";
 import { rewriteSequenceExpressionStatementGetLastValue } from "./sequenceExpression";
-import { rewriteStatement, rewriteStatementWrapWithBlock } from "./statement";
+import {
+  getIdentifiersStatementUses,
+  rewriteStatement,
+  rewriteStatementWrapWithBlock,
+} from "./statement";
 import { Scope } from "./scope";
+import { IdentifierAccess } from "./IdentifierAccess";
+import { combine } from "./combine";
 
 /**
  * * Rewrites the test expression, splitting if necessary
@@ -45,4 +51,19 @@ export function rewriteIfStatement(
   }
 
   return [...preamble, types.ifStatement(test, consequent, alternate)];
+}
+
+export function getIdentifiersIfStatementUses(
+  statement: types.IfStatement
+): IdentifierAccess[] {
+  let identifiers = combine(
+    getIdentifiersExpressionUses(statement.test),
+    getIdentifiersStatementUses(statement.consequent)
+  );
+
+  if (statement.alternate) {
+    identifiers.push(...getIdentifiersStatementUses(statement.alternate));
+  }
+
+  return identifiers;
 }

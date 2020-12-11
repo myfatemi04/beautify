@@ -1,5 +1,6 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
+import { getIdentifiersExpressionsUse, rewriteExpression } from "./expression";
+import { IdentifierAccess } from "./IdentifierAccess";
 import { Scope } from "./scope";
 
 export function rewriteArrayExpression(
@@ -16,5 +17,14 @@ export function rewriteArrayExpression(
         return rewriteExpression(element, scope);
       }
     })
+  );
+}
+
+export function getIdentifiersArrayExpressionUses(
+  expression: types.ArrayExpression
+): IdentifierAccess[] {
+  // some elements in array expressions can be null; filter them out
+  return getIdentifiersExpressionsUse(
+    expression.elements.filter((element) => element != null)
   );
 }

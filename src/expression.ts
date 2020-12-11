@@ -8,21 +8,30 @@ import { getIdentifiersPrivateNameUses } from "./privateName";
 import { getIdentifiersStatementUses } from "./statement";
 import { getIdentifiersCalleeUses } from "./callee";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { rewriteArrayExpression } from "./arrayExpression";
+import {
+  getIdentifiersArrayExpressionUses,
+  rewriteArrayExpression,
+} from "./arrayExpression";
 import { rewriteArrowFunctionExpression } from "./arrowFunctionExpression";
-import { rewriteAssignmentExpression } from "./assignmentExpression";
+import {
+  getIdentifiersAssignmentExpressionUses,
+  rewriteAssignmentExpression,
+} from "./assignmentExpression";
 import { rewriteBinaryExpression } from "./binaryExpression";
 import { rewriteCallExpression } from "./callExpression";
 import { rewriteClassExpression } from "./classExpression";
 import { rewriteConditionalExpression } from "./conditionalExpression";
-import { rewriteFunctionExpression } from "./functionDeclaration";
+import { rewriteFunctionExpression } from "./functionExpression";
 import { rewriteLogicalExpression } from "./logicalExpression";
 import {
   rewriteMemberExpression,
   rewriteOptionalMemberExpression,
 } from "./memberExpression";
 import { rewriteNewExpression } from "./newExpression";
-import { rewriteObjectExpression } from "./objectExpression";
+import {
+  getIdentifiersObjectExpressionUses,
+  rewriteObjectExpression,
+} from "./objectExpression";
 import { rewriteSequenceExpression } from "./sequenceExpression";
 import { rewriteUnaryExpression } from "./unaryExpression";
 import { Scope } from "./scope";
@@ -103,36 +112,13 @@ export function getIdentifiersExpressionUses(
       ];
 
     case "ArrayExpression":
-      // some elements in array expressions can be null; filter them out
-      return getIdentifiersExpressionsUse(
-        expression.elements.filter((element) => element != null)
-      );
+      return getIdentifiersArrayExpressionUses(expression);
 
-    case "ObjectExpression": {
-      let identifiers = [];
-      for (let property of expression.properties) {
-        if (property.type === "SpreadElement") {
-          identifiers = combine(
-            identifiers,
-            getIdentifiersExpressionUses(property)
-          );
-        } else if (property.type === "ObjectProperty") {
-          identifiers = combine(
-            identifiers,
-            getIdentifiersObjectPropertyUses(property)
-          );
-        }
-      }
-      return identifiers;
-    }
+    case "ObjectExpression":
+      return getIdentifiersObjectExpressionUses(expression);
 
-    case "AssignmentExpression": {
-      // Get all identifiers of the left hand side.
-      let identifiers: IdentifierAccess[] = [];
-      identifiers.push(...getIdentifiersLValUses(expression.left));
-      identifiers.push(...getIdentifiersExpressionUses(expression.right));
-      return identifiers;
-    }
+    case "AssignmentExpression":
+      return getIdentifiersAssignmentExpressionUses(expression);
 
     case "MemberExpression":
       return getIdentifiersMemberExpressionUses(expression);

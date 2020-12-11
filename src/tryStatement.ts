@@ -1,7 +1,12 @@
 import * as types from "@babel/types";
 import { rewriteBlockStatement } from "./blockStatement";
-import { rewriteCatchClause } from "./catchClause";
+import {
+  getIdentifiersCatchClauseUses,
+  rewriteCatchClause,
+} from "./catchClause";
+import { IdentifierAccess } from "./IdentifierAccess";
 import { Scope } from "./scope";
+import { getIdentifiersStatementUses } from "./statement";
 
 /**
  * Rewrites the body of a try statement
@@ -24,4 +29,22 @@ export function rewriteTryStatement(
     : undefined;
 
   return types.tryStatement(block, handler, finalizer);
+}
+
+export function getIdentifiersTryStatementUses(
+  statement: types.TryStatement
+): IdentifierAccess[] {
+  let identifiers = [];
+
+  identifiers.push(...getIdentifiersStatementUses(statement.block));
+
+  if (statement.handler) {
+    identifiers.push(...getIdentifiersCatchClauseUses(statement.handler));
+  }
+
+  if (statement.finalizer) {
+    identifiers.push(...getIdentifiersStatementUses(statement.finalizer));
+  }
+
+  return identifiers;
 }

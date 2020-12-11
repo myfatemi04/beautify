@@ -1,9 +1,18 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { rewriteSequenceExpressionStatementGetLastValue } from "./sequenceExpression";
-import { rewriteStatement, rewriteStatementWrapWithBlock } from "./statement";
-import { rewriteVariableDeclaration } from "./variableDeclaration";
+import {
+  getIdentifiersStatementUses,
+  rewriteStatement,
+  rewriteStatementWrapWithBlock,
+} from "./statement";
+import {
+  getIdentifiersVariableDeclarationUses,
+  rewriteVariableDeclaration,
+} from "./variableDeclaration";
 import { Scope } from "./scope";
+import { IdentifierAccess } from "./IdentifierAccess";
+import { getIdentifiersLValUses } from "./lval";
 
 /**
  * Rewrites a For statement. If there is more than one variable declaration
@@ -70,4 +79,49 @@ export function rewriteForOfInStatement(
     body: types.blockStatement(rewrittenBody),
     right,
   };
+}
+
+export function getIdentifiersForStatementUses(
+  statement: types.ForStatement
+): IdentifierAccess[] {
+  {
+    let identifiers = [];
+    if (statement.init) {
+      if (types.isExpression(statement.init)) {
+        identifiers.push(...getIdentifiersExpressionUses(statement.init));
+      } else {
+        identifiers.push(
+          ...getIdentifiersVariableDeclarationUses(statement.init)
+        );
+      }
+    }
+
+    if (statement.test) {
+      identifiers.push(...getIdentifiersExpressionUses(statement.test));
+    }
+
+    if (statement.update) {
+      identifiers.push(...getIdentifiersExpressionUses(statement.update));
+    }
+
+    identifiers.push(...getIdentifiersStatementUses(statement.body));
+
+    return identifiers;
+  }
+}
+
+export function getIdentifiersForOfInStatementUses(
+  statement: types.ForInStatement | types.ForOfStatement
+): IdentifierAccess[] {
+  let identifiers: IdentifierAccess[] = [];
+
+  if (types.isLVal(statement.left)) {
+    identifiers.push(...getIdentifiersLValUses(statement.left));
+  } else {
+    identifiers.push(...getIdentifiersVariableDeclarationUses(statement.left));
+  }
+
+  identifiers.push(...getIdentifiersStatementUses(statement.body));
+
+  return identifiers;
 }
