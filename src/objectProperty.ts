@@ -28,13 +28,21 @@ export function rewriteObjectProperty(
   path: PathNode
 ): types.ObjectProperty {
   let key = property.key;
-  if (!property.computed) {
+  if (property.computed) {
     key = rewriteExpression(key, path);
   }
+
   let value = property.value;
   if (types.isExpression(value)) {
     value = rewriteExpression(value, path);
   } else if (types.isRestElement(value)) {
   }
-  return types.objectProperty(key, value);
+
+  return types.objectProperty(
+    key,
+    value,
+    property.computed,
+    property.shorthand,
+    property.decorators
+  );
 }

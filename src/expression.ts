@@ -40,6 +40,7 @@ import { rewriteUnaryExpression } from "./unaryExpression";
 import { PathNode } from "./path";
 import { getIdentifiersArgumentsUse } from "./arguments";
 import { getIdentifiersMethodUses } from "./method";
+import { getIdentifiersClassBodyUses } from "./classBody";
 
 export function getIdentifiersExpressionUses(
   expression: types.Expression
@@ -107,7 +108,11 @@ export function getIdentifiersExpressionUses(
     case "DecimalLiteral":
     case "NullLiteral":
     case "ThisExpression":
+    case "Super":
       return [];
+
+    case "ClassExpression":
+      return getIdentifiersClassBodyUses(expression.body);
 
     case "ArrowFunctionExpression":
     case "FunctionExpression":
@@ -150,6 +155,8 @@ export function rewriteExpression(
       return rewriteLogicalExpression(expression, path);
     case "ParenthesizedExpression":
       return rewriteExpression(expression.expression, path);
+    case "Super":
+      return expression;
   }
 
   if (types.isLiteral(expression)) {

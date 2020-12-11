@@ -191,11 +191,10 @@ export class PathNode {
             let { id, init } = statement.declarations[0];
             if (types.isIdentifier(id)) {
               if (!this.isVariableUsedLater(id.name)) {
-                if (expressionHasSideEffects(init)) {
-                  statementsUpdated.push(types.expressionStatement(init));
-                }
-
-                continue;
+                // if (expressionHasSideEffects(init)) {
+                //   statementsUpdated.push(types.expressionStatement(init));
+                // }
+                // continue;
               }
             }
           }

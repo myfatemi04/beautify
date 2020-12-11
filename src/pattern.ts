@@ -36,7 +36,9 @@ export function getIdentifiersArrayPatternUses(
   let identifiers: IdentifierAccess[] = [];
 
   for (let element of pattern.elements) {
-    identifiers.push(...getIdentifiersLValUses(element));
+    if (element != null) {
+      identifiers.push(...getIdentifiersLValUses(element));
+    }
   }
 
   return identifiers;

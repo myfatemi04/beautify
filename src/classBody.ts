@@ -1,9 +1,14 @@
 import * as types from "@babel/types";
-import { rewriteClassMethod } from "./classMethod";
+import {
+  getIdentifiersClassMethodUses,
+  rewriteClassMethod,
+} from "./classMethod";
 import {
   rewriteClassProperty,
   rewriteClassPrivateProperty,
+  getIdentifiersClassPropertyUses,
 } from "./classProperty";
+import { IdentifierAccess } from "./IdentifierAccess";
 import { PathNode } from "./path";
 
 export function rewriteClassBody(
@@ -31,4 +36,27 @@ export function rewriteClassBody(
     ...expression_,
     body,
   };
+}
+
+export function getIdentifiersClassBodyUses(
+  body: types.ClassBody
+): IdentifierAccess[] {
+  let identifiers: IdentifierAccess[] = [];
+
+  for (let line of body.body) {
+    if (line.type === "ClassMethod" || line.type === "ClassPrivateMethod") {
+      identifiers.push(...getIdentifiersClassMethodUses(line));
+    } else if (
+      line.type === "ClassPrivateProperty" ||
+      line.type === "ClassProperty"
+    ) {
+      identifiers.push(...getIdentifiersClassPropertyUses(line));
+    } else {
+      throw new Error(
+        "getIdentifiersClassBodyUses() doesn't handle case " + line
+      );
+    }
+  }
+
+  return identifiers;
 }

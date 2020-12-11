@@ -1,5 +1,6 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
+import { IdentifierAccess } from "./IdentifierAccess";
 import { PathNode } from "./path";
 
 export function rewriteClassPrivateProperty(
@@ -26,4 +27,22 @@ export function rewriteClassProperty(
     property.computed,
     property.static
   );
+}
+
+export function getIdentifiersClassPropertyUses(
+  property: types.ClassProperty | types.ClassPrivateProperty
+): IdentifierAccess[] {
+  let identifiers: IdentifierAccess[] = [];
+
+  if (types.isIdentifier(property.key)) {
+    identifiers.push({ type: "define", id: property.key });
+  } else if (types.isPrivateName(property.key)) {
+    identifiers.push({ type: "define", id: property.key.id });
+  } else {
+    identifiers.push(...getIdentifiersExpressionUses(property.key));
+  }
+
+  identifiers.push(...getIdentifiersExpressionUses(property.value));
+
+  return identifiers;
 }
