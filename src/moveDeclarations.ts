@@ -1,8 +1,8 @@
 import * as types from "@babel/types";
 import { Scope } from "./scope";
 import expressionHasSideEffects from "./expressionHasSideEffects";
-import { getIdentifiersStatementUses } from "./getIdentifiersStatementUses";
-import { getIdentifiersLValUses } from "./getIdentifiersLValUses";
+import { getIdentifiersStatementUses } from "./statement";
+import { getIdentifiersLValUses } from "./lval";
 
 type CheckIfUsedOutsideFunction = (identifier: string) => boolean;
 type CheckIfDeclaredOutsideFunction = (identifier: string) => boolean;
@@ -204,9 +204,11 @@ export function traverseExpression(
       return types.yieldExpression(traverseExpression_(expression.argument));
 
     case "SequenceExpression":
-      return types.sequenceExpression(expression.expressions.map(expression => {
-        return traverseExpression_(expression);
-      }));
+      return types.sequenceExpression(
+        expression.expressions.map((expression) => {
+          return traverseExpression_(expression);
+        })
+      );
   }
 
   console.warn("traverseExpression() needs case", expression);

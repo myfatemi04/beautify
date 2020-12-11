@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as parser from "@babel/parser";
 import generate from "@babel/generator";
 
-import { rewriteScopedStatementArray } from "./rewriteStatementArray";
+import { rewriteScopedStatementArray } from "./statementArray";
 
 let inputCode = fs.readFileSync("in.js", { encoding: "utf8" });
 
