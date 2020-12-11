@@ -115,22 +115,22 @@ export class PathNode {
   rewrite() {
     this.hoistAll();
 
-    let newBody: types.Statement[] = [];
+    let body: types.Statement[] = [];
     this.index = 0;
     for (let statement of this.body) {
-      newBody.push(...rewriteStatement(statement, this));
+      body.push(...rewriteStatement(statement, this));
       this.index++;
     }
 
-    this.body = newBody;
+    this.body = body;
     this.index = 0;
 
     this.moveDeclarationsInward();
   }
 
   moveDeclarationsInward() {
-    let statementsUpdated: types.Statement[] = [];
     this.index = 0;
+    let body: types.Statement[] = [];
     for (let statement of this.body) {
       // Here is where things get good
 
@@ -140,7 +140,7 @@ export class PathNode {
       switch (statement.type) {
         case "ExpressionStatement": {
           let expression = statement.expression;
-          if (expression.type === "AssignmentExpression") {
+          if (types.isAssignmentExpression(expression, { operator: "=" })) {
             if (types.isIdentifier(expression.left)) {
               let name = expression.left.name;
 
@@ -148,9 +148,7 @@ export class PathNode {
               if (!this.isVariableUsedLater(name)) {
                 // check if the expression actually does something
                 if (expressionHasSideEffects(expression.right)) {
-                  statementsUpdated.push(
-                    types.expressionStatement(expression.right)
-                  );
+                  body.push(types.expressionStatement(expression.right));
                 }
 
                 continue;
@@ -164,7 +162,7 @@ export class PathNode {
                 // and it hasn't been declared yet, then
                 // we can turn this assignment into a "let"
                 // statement.
-                statementsUpdated.push(
+                body.push(
                   types.variableDeclaration(
                     this.isVariableUpdatedLater(name) ? "let" : "const",
                     [
@@ -182,7 +180,7 @@ export class PathNode {
             }
           }
 
-          statementsUpdated.push(statement);
+          body.push(statement);
           continue;
         }
 
@@ -199,7 +197,7 @@ export class PathNode {
             }
           }
 
-          statementsUpdated.push(
+          body.push(
             types.variableDeclaration(
               "let",
               statement.declarations.map((declarator) => {
@@ -231,7 +229,7 @@ export class PathNode {
         case "ThrowStatement":
         case "ClassDeclaration":
         case "SwitchStatement": // TODO take care of case consequents being stupid mfs
-          statementsUpdated.push(statement);
+          body.push(statement);
           continue;
 
         case "EmptyStatement":
@@ -240,11 +238,11 @@ export class PathNode {
 
       console.log("moveDeclarations() needs statement", statement);
 
-      statementsUpdated.push(statement);
+      body.push(statement);
       this.index += 1;
     }
 
-    this.body = statementsUpdated;
+    this.body = body;
   }
 
   declareInBlock(name: string) {

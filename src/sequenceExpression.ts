@@ -7,10 +7,14 @@ import { PathNode } from "./path";
 export function rewriteSequenceExpressionStatement(
   sequence: types.SequenceExpression,
   path: PathNode
-): types.ExpressionStatement[] {
-  return sequence.expressions.map((expression) =>
-    types.expressionStatement(rewriteExpression(expression, path))
-  );
+): types.Statement[] {
+  let statements: types.Statement[] = [];
+  for (let expression of sequence.expressions) {
+    statements.push(
+      ...rewriteExpressionStatement(types.expressionStatement(expression), path)
+    );
+  }
+  return statements;
 }
 
 export function rewriteSequenceExpressionStatementGetLastValue(
