@@ -7,7 +7,7 @@ import {
   rewriteStatement,
   rewriteStatementWrapWithBlock,
 } from "./statement";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { IdentifierAccess } from "./IdentifierAccess";
 import { combine } from "./combine";
 
@@ -16,28 +16,28 @@ import { combine } from "./combine";
  * * Wraps the consequent/alternate with brackets
  *
  * @param statement if (a) { b } else { c }
- * @param scope Scope
+ * @param path path
  */
 export function rewriteIfStatement(
   statement: types.IfStatement,
-  scope: Scope
+  path: PathNode
 ): types.Statement[] {
   let preamble = [];
   let { test, consequent, alternate } = statement;
 
   // split up "if" sequences
   if (types.isSequenceExpression(test)) {
-    let rewritten = rewriteSequenceExpressionStatementGetLastValue(test, scope);
+    let rewritten = rewriteSequenceExpressionStatementGetLastValue(test, path);
     test = rewritten.value;
     preamble = rewritten.preceeding;
   }
 
   if (consequent) {
-    consequent = rewriteStatementWrapWithBlock(consequent, scope);
+    consequent = rewriteStatementWrapWithBlock(consequent, path);
   }
 
   if (alternate) {
-    let alternate_ = rewriteStatement(alternate, scope);
+    let alternate_ = rewriteStatement(alternate, path);
     // use proper block wrapping
     if (alternate_.length > 1) {
       alternate = types.blockStatement(alternate_);

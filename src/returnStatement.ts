@@ -2,7 +2,7 @@ import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { rewriteIfStatement } from "./ifStatement";
 import { rewriteSequenceExpressionStatementGetLastValue } from "./sequenceExpression";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { IdentifierAccess } from "./IdentifierAccess";
 
 /**
@@ -11,11 +11,11 @@ import { IdentifierAccess } from "./IdentifierAccess";
  * to an if statement.
  *
  * @param statement return x;
- * @param scope Scope
+ * @param path path
  */
 export function rewriteReturnStatement(
   statement: types.ReturnStatement,
-  scope: Scope
+  path: PathNode
 ): types.Statement[] {
   if (!statement.argument) {
     return [statement];
@@ -29,22 +29,20 @@ export function rewriteReturnStatement(
           types.returnStatement(consequent),
           types.returnStatement(alternate)
         ),
-        scope
+        path
       );
     }
 
     if (statement.argument.type === "SequenceExpression") {
       let rewritten = rewriteSequenceExpressionStatementGetLastValue(
         statement.argument,
-        scope
+        path
       );
 
       return [...rewritten.preceeding, types.returnStatement(rewritten.value)];
     }
 
-    return [
-      types.returnStatement(rewriteExpression(statement.argument, scope)),
-    ];
+    return [types.returnStatement(rewriteExpression(statement.argument, path))];
   }
 }
 

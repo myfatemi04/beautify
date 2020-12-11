@@ -2,7 +2,7 @@ import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { getIdentifiersPatternLikeUses } from "./patternLike";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function getIdentifiersObjectPropertyUses(
   property: types.ObjectProperty
@@ -25,15 +25,15 @@ export function getIdentifiersObjectPropertyUses(
 
 export function rewriteObjectProperty(
   property: types.ObjectProperty,
-  scope: Scope
+  path: PathNode
 ): types.ObjectProperty {
   let key = property.key;
   if (!property.computed) {
-    key = rewriteExpression(key, scope);
+    key = rewriteExpression(key, path);
   }
   let value = property.value;
   if (types.isExpression(value)) {
-    value = rewriteExpression(value, scope);
+    value = rewriteExpression(value, path);
   } else if (types.isRestElement(value)) {
   }
   return types.objectProperty(key, value);

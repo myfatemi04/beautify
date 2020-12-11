@@ -1,13 +1,13 @@
 import * as types from "@babel/types";
 import { rewriteStatementWrapWithBlock } from "./statement";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function rewriteLabeledStatement(
   statement: types.LabeledStatement,
-  scope: Scope
+  path: PathNode
 ): types.LabeledStatement {
   return {
     ...statement,
-    body: rewriteStatementWrapWithBlock(statement.body, scope),
+    body: rewriteStatementWrapWithBlock(statement.body, path),
   };
 }

@@ -18,7 +18,7 @@ export function getIdentifiersFunctionParamsUse(
       identifiers.push(...getIdentifiersPatternUses(param));
     } else if (types.isIdentifier(param)) {
       // Identifier: this identifier is "set" (instantiated from the function)
-      identifiers.push({ type: "set", id: param });
+      identifiers.push({ type: "define", id: param });
     } else if (types.isRestElement(param)) {
       // Rest element: whatever content in the Rest Element is "set"
       identifiers.push(...getIdentifiersRestElementUses(param));
@@ -27,7 +27,7 @@ export function getIdentifiersFunctionParamsUse(
       // The param can be an identifier or assignment pattern and is treated
       // like it were a regular function parameter.
       if (types.isIdentifier(param)) {
-        identifiers.push({ type: "set", id: param });
+        identifiers.push({ type: "define", id: param });
       } else if (types.isAssignmentPattern(param)) {
         identifiers.push(...getIdentifiersAssignmentPatternUses(param));
       } else {

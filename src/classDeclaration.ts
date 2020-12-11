@@ -4,16 +4,16 @@ import { getIdentifiersClassMethodUses } from "./classMethod";
 import { combine } from "./combine";
 import { getIdentifiersExpressionUses } from "./expression";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function rewriteClassDeclaration(
   expression: types.ClassDeclaration,
-  scope: Scope
+  path: PathNode
 ): types.ClassDeclaration {
   return types.classDeclaration(
     expression.id,
     expression.superClass,
-    rewriteClassBody(expression.body, scope),
+    rewriteClassBody(expression.body, path),
     expression.decorators
   );
 }

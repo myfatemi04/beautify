@@ -8,14 +8,14 @@ import {
   getIdentifiersSpreadElementUses,
   rewriteSpreadElement,
 } from "./spreadElement";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { combine } from "./combine";
 import { getIdentifiersExpressionUses } from "./expression";
 import { IdentifierAccess } from "./IdentifierAccess";
 
 export function rewriteObjectExpression(
   expression: types.ObjectExpression,
-  scope: Scope
+  path: PathNode
 ): types.ObjectExpression {
   let properties: Array<
     types.ObjectMethod | types.ObjectProperty | types.SpreadElement
@@ -23,11 +23,11 @@ export function rewriteObjectExpression(
 
   for (let property of expression.properties) {
     if (property.type === "SpreadElement") {
-      properties.push(rewriteSpreadElement(property, scope));
+      properties.push(rewriteSpreadElement(property, path));
     } else if (property.type === "ObjectMethod") {
-      properties.push(rewriteObjectMethod(property, scope));
+      properties.push(rewriteObjectMethod(property, path));
     } else if (property.type === "ObjectProperty") {
-      properties.push(rewriteObjectProperty(property, scope));
+      properties.push(rewriteObjectProperty(property, path));
     }
   }
 

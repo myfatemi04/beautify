@@ -1,12 +1,12 @@
 import * as types from "@babel/types";
 import { rewriteScopedStatementArray } from "./statementArray";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function rewriteObjectMethod(
   objectMethod: types.ObjectMethod,
-  scope: Scope
+  path: PathNode
 ): types.ObjectMethod {
-  let body = rewriteScopedStatementArray(objectMethod.body.body, scope);
+  let body = rewriteScopedStatementArray(objectMethod.body.body, path);
   return types.objectMethod(
     objectMethod.kind,
     objectMethod.key,

@@ -1,15 +1,15 @@
 import * as types from "@babel/types";
 import { rewriteClassBody } from "./classBody";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function rewriteClassExpression(
   expression: types.ClassExpression,
-  scope: Scope
+  path: PathNode
 ): types.ClassExpression {
   return types.classExpression(
     expression.id,
     expression.superClass,
-    rewriteClassBody(expression.body, scope),
+    rewriteClassBody(expression.body, path),
     expression.decorators
   );
 }

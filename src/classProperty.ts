@@ -1,14 +1,14 @@
 import * as types from "@babel/types";
 import { rewriteExpression } from "./expression";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function rewriteClassPrivateProperty(
   property: types.ClassPrivateProperty,
-  scope: Scope
+  path: PathNode
 ): types.ClassPrivateProperty {
   return types.classPrivateProperty(
     property.key,
-    rewriteExpression(property.value, scope),
+    rewriteExpression(property.value, path),
     property.decorators,
     property.static
   );
@@ -16,11 +16,11 @@ export function rewriteClassPrivateProperty(
 
 export function rewriteClassProperty(
   property: types.ClassProperty,
-  scope: Scope
+  path: PathNode
 ): types.ClassProperty {
   return types.classProperty(
     property.key,
-    rewriteExpression(property.value, scope),
+    rewriteExpression(property.value, path),
     property.typeAnnotation,
     property.decorators,
     property.computed,

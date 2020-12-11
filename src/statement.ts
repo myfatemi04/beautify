@@ -47,7 +47,7 @@ import {
   rewriteDoWhileStatement,
   rewriteWhileStatement,
 } from "./whileDoWhile";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import {
   getIdentifiersThrowStatementUses,
   rewriteThrowStatement,
@@ -124,44 +124,45 @@ export function getIdentifiersStatementUses(
 
 export function rewriteStatement(
   statement: types.Statement,
-  scope: Scope
+  path: PathNode
 ): types.Statement[] {
   switch (statement.type) {
     case "ExpressionStatement":
-      return rewriteExpressionStatement(statement, scope);
+      return rewriteExpressionStatement(statement, path);
     case "ForStatement":
-      return rewriteForStatement(statement, scope);
+      return rewriteForStatement(statement, path);
     case "BlockStatement":
-      return [rewriteBlockStatement(statement, scope)];
+      return [rewriteBlockStatement(statement, path)];
     case "IfStatement":
-      return rewriteIfStatement(statement, scope);
+      return rewriteIfStatement(statement, path);
     case "FunctionDeclaration":
-      return [rewriteFunctionDeclaration(statement, scope)];
+      return [rewriteFunctionDeclaration(statement, path)];
     case "ReturnStatement":
-      return rewriteReturnStatement(statement, scope);
+      return rewriteReturnStatement(statement, path);
     case "VariableDeclaration":
-      return rewriteVariableDeclaration(statement, scope);
+      return rewriteVariableDeclaration(statement, path);
     case "ClassDeclaration":
-      return [rewriteClassDeclaration(statement, scope)];
+      return [rewriteClassDeclaration(statement, path)];
     case "SwitchStatement":
-      return [rewriteSwitchStatement(statement, scope)];
+      return [rewriteSwitchStatement(statement, path)];
     case "TryStatement":
-      return [rewriteTryStatement(statement, scope)];
+      return [rewriteTryStatement(statement, path)];
     case "ThrowStatement":
-      return [rewriteThrowStatement(statement, scope)];
+      return [rewriteThrowStatement(statement, path)];
     case "ForInStatement":
     case "ForOfStatement":
-      return [rewriteForOfInStatement(statement, scope)];
+      return [rewriteForOfInStatement(statement, path)];
     case "DoWhileStatement":
-      return [rewriteDoWhileStatement(statement, scope)];
+      return [rewriteDoWhileStatement(statement, path)];
     case "LabeledStatement":
-      return [rewriteLabeledStatement(statement, scope)];
+      return [rewriteLabeledStatement(statement, path)];
     case "WhileStatement":
-      return [rewriteWhileStatement(statement, scope)];
+      return [rewriteWhileStatement(statement, path)];
     case "ContinueStatement":
     case "BreakStatement":
-    case "EmptyStatement":
       return [statement];
+    case "EmptyStatement":
+      return [];
   }
 
   console.warn("rewriteStatement() needs case", statement.type);
@@ -171,9 +172,9 @@ export function rewriteStatement(
 
 export function rewriteStatementWrapWithBlock(
   statement: types.Statement,
-  scope: Scope
+  path: PathNode
 ): types.BlockStatement {
-  let statement_ = rewriteStatement(statement, scope);
+  let statement_ = rewriteStatement(statement, path);
   if (statement_.length == 1) {
     if (types.isBlockStatement(statement_[0])) {
       return statement_[0];

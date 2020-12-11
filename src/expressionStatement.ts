@@ -3,23 +3,23 @@ import { rewriteConditionalExpressionStatement } from "./conditionalExpression";
 import { rewriteExpression } from "./expression";
 import { rewriteLogicalExpressionStatement } from "./logicalExpression";
 import { rewriteSequenceExpressionStatement } from "./sequenceExpression";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function rewriteExpressionStatement(
   statement: types.ExpressionStatement,
-  scope: Scope
+  path: PathNode
 ): types.Statement[] {
   let expression = statement.expression;
 
   switch (expression.type) {
     case "ConditionalExpression":
-      return rewriteConditionalExpressionStatement(expression, scope);
+      return rewriteConditionalExpressionStatement(expression, path);
     case "LogicalExpression":
-      return rewriteLogicalExpressionStatement(expression, scope);
+      return rewriteLogicalExpressionStatement(expression, path);
     case "SequenceExpression":
-      return rewriteSequenceExpressionStatement(expression, scope);
+      return rewriteSequenceExpressionStatement(expression, path);
 
     default:
-      return [types.expressionStatement(rewriteExpression(expression, scope))];
+      return [types.expressionStatement(rewriteExpression(expression, path))];
   }
 }

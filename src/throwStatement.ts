@@ -1,20 +1,20 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 /**
  * Rewrites a throw statement: the expression to be thrown.
  * If the expression needs additional setup, split it up.
  *
  * @param statement
- * @param scope
+ * @param path
  */
 export function rewriteThrowStatement(
   statement: types.ThrowStatement,
-  scope: Scope
+  path: PathNode
 ): types.ThrowStatement {
-  return types.throwStatement(rewriteExpression(statement.argument, scope));
+  return types.throwStatement(rewriteExpression(statement.argument, path));
 }
 
 export function getIdentifiersThrowStatementUses(

@@ -3,7 +3,7 @@ import { getIdentifiersPatternLikeUses } from "./patternLike";
 import { getIdentifiersAssignmentPatternUses } from "./pattern";
 import { IdentifierAccess } from "./IdentifierAccess";
 import { rewriteBlockStatement } from "./blockStatement";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function getIdentifiersClassMethodUses(
   method: types.ClassMethod | types.ClassPrivateMethod
@@ -32,10 +32,10 @@ export function getIdentifiersClassMethodUses(
 
 export function rewriteClassMethod(
   expression: types.ClassMethod | types.ClassPrivateMethod,
-  scope: Scope
+  path: PathNode
 ): types.ClassMethod | types.ClassPrivateMethod {
   return {
     ...expression,
-    body: rewriteBlockStatement(expression.body, scope),
+    body: rewriteBlockStatement(expression.body, path),
   };
 }

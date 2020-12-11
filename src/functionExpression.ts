@@ -1,22 +1,22 @@
 import * as types from "@babel/types";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { rewriteScopedStatementArray } from "./statementArray";
 
 /**
  * Rewrites the body of a function expression and converts
  * to an arrow expression.
  * @param expression a = function(b) {}
- * @param scope Scope
+ * @param path path
  */
 export function rewriteFunctionExpression(
   expression: types.FunctionExpression,
-  scope: Scope
+  path: PathNode
 ): types.ArrowFunctionExpression {
   // Rewrite as arrow expression
   return types.arrowFunctionExpression(
     expression.params,
     types.blockStatement(
-      rewriteScopedStatementArray(expression.body.body, scope)
+      rewriteScopedStatementArray(expression.body.body, path)
     )
   );
 }

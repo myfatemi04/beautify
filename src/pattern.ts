@@ -47,14 +47,16 @@ export function getIdentifiersObjectPatternUses(
   let identifiers: IdentifierAccess[] = [];
 
   for (let property of pattern.properties) {
-    if (property.type === "ObjectProperty") {
+    if (types.isObjectProperty(property)) {
       if (types.isPatternLike(property.value)) {
         identifiers.push(...getIdentifiersPatternLikeUses(property.value));
       } else {
         identifiers.push(...getIdentifiersExpressionUses(property.value));
       }
-    } else if (property.type === "RestElement") {
+    } else if (types.isRestElement(property)) {
       identifiers.push(...getIdentifiersRestElementUses(property));
+    } else {
+      throw new Error("Object property invalid: " + property);
     }
   }
 
@@ -64,11 +66,11 @@ export function getIdentifiersObjectPatternUses(
 export function getIdentifiersPatternUses(
   pattern: types.Pattern
 ): IdentifierAccess[] {
-  if (pattern.type === "ArrayPattern") {
+  if (types.isArrayPattern(pattern)) {
     return getIdentifiersArrayPatternUses(pattern);
-  } else if (pattern.type === "ObjectPattern") {
+  } else if (types.isObjectPattern(pattern)) {
     return getIdentifiersObjectPatternUses(pattern);
-  } else if (pattern.type === "AssignmentPattern") {
+  } else if (types.isAssignmentPattern(pattern)) {
     return getIdentifiersAssignmentPatternUses(pattern);
   } else {
     throw new Error("Unexpected pattern:" + pattern);

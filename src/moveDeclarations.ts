@@ -1,5 +1,5 @@
 import * as types from "@babel/types";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import expressionHasSideEffects from "./expressionHasSideEffects";
 import { getIdentifiersStatementUses } from "./statement";
 import { getIdentifiersLValUses } from "./lval";
@@ -13,7 +13,7 @@ type CheckIfUpdatedOutsideFunction = (identifier: string) => boolean;
  */
 export function traverseExpression(
   expression: types.Expression,
-  scope: Scope,
+  path: PathNode,
   isUsedOutside: CheckIfUsedOutsideFunction = () => false,
   isDeclaredOutside: CheckIfDeclaredOutsideFunction = () => false,
   isUpdatedOutside: CheckIfUpdatedOutsideFunction = () => false
@@ -33,7 +33,7 @@ export function traverseExpression(
   const traverseExpression_ = (expression: types.Expression) => {
     return traverseExpression(
       expression,
-      scope,
+      path,
       isUsedOutside,
       isDeclaredOutside,
       isUpdatedOutside
@@ -43,7 +43,7 @@ export function traverseExpression(
   const moveDeclarationsInward_ = (statements: types.Statement[]) => {
     return moveDeclarationsInward(
       statements,
-      scope,
+      path,
       isUsedOutside,
       isDeclaredOutside,
       isUpdatedOutside
@@ -218,7 +218,7 @@ export function traverseExpression(
 
 export function moveDeclarationsInward(
   statements: types.Statement[],
-  scope: Scope,
+  path: PathNode,
   isUsedOutside: CheckIfUsedOutsideFunction = () => false,
   isDeclaredOutside: CheckIfDeclaredOutsideFunction = () => false,
   isUpdatedOutside: CheckIfUpdatedOutsideFunction = () => false
@@ -281,7 +281,7 @@ export function moveDeclarationsInward(
   const moveDeclarationsInward_ = (statements: types.Statement[]) => {
     return moveDeclarationsInward(
       statements,
-      scope,
+      new PathNode(statements, false, path),
       checkIfUsedLater,
       checkIfDeclaredOutside,
       checkIfUpdatedLater
@@ -291,7 +291,7 @@ export function moveDeclarationsInward(
   const traverseExpression_ = (expression: types.Expression) => {
     return traverseExpression(
       expression,
-      scope,
+      path,
       isUsedOutside,
       isDeclaredOutside,
       isUpdatedOutside
@@ -302,7 +302,7 @@ export function moveDeclarationsInward(
     // Here is where things get good
 
     // When a variable value is set, check to see if
-    // its current value is ever referenced outside of this scope.
+    // its current value is ever referenced outside of this path.
 
     switch (statement.type) {
       case "ExpressionStatement": {
@@ -342,8 +342,6 @@ export function moveDeclarationsInward(
               );
 
               hasBeenDeclared[name] = true;
-
-              delete scope.vars[name];
 
               continue;
             }

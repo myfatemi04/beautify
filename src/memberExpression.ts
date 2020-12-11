@@ -3,7 +3,7 @@ import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { getIdentifiersPrivateNameUses } from "./privateName";
 import { IdentifierAccess } from "./IdentifierAccess";
 import hasSpecialCharacters from "./hasSpecialCharacters";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function getIdentifiersMemberExpressionUses(
   expression: types.MemberExpression
@@ -30,12 +30,12 @@ export function getIdentifiersMemberExpressionUses(
  */
 export function rewriteMemberExpression(
   expression: types.MemberExpression,
-  scope: Scope
+  path: PathNode
 ): types.MemberExpression {
-  let object = rewriteExpression(expression.object, scope);
+  let object = rewriteExpression(expression.object, path);
   let property = expression.property;
   if (expression.property.type !== "PrivateName") {
-    property = rewriteExpression(expression.property, scope);
+    property = rewriteExpression(expression.property, path);
   }
 
   let computed = expression.computed;
@@ -57,10 +57,10 @@ export function rewriteMemberExpression(
 
 export function rewriteOptionalMemberExpression(
   expression: types.OptionalMemberExpression,
-  scope: Scope
+  path: PathNode
 ): types.OptionalMemberExpression {
-  let object = rewriteExpression(expression.object, scope);
-  let property = rewriteExpression(expression.property, scope);
+  let object = rewriteExpression(expression.object, path);
+  let property = rewriteExpression(expression.property, path);
 
   return types.optionalMemberExpression(
     object,

@@ -1,15 +1,15 @@
 import * as types from "@babel/types";
 import { rewriteExpression } from "./expression";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 /**
  * Writes the callee (A) and the arguments (B, C)
  * @param expression Call expression: A(B, C)
- * @param scope Scope
+ * @param path path
  */
 export function rewriteCallExpression(
   expression: types.CallExpression,
-  scope: Scope
+  path: PathNode
 ): types.CallExpression {
   let preamble = [];
   let args = [];
@@ -21,13 +21,13 @@ export function rewriteCallExpression(
     ) {
       args.push(arg);
     } else {
-      args.push(rewriteExpression(arg, scope));
+      args.push(rewriteExpression(arg, path));
     }
   }
 
   let calleeExpression = expression.callee;
   if (expression.callee.type !== "V8IntrinsicIdentifier") {
-    calleeExpression = rewriteExpression(expression.callee, scope);
+    calleeExpression = rewriteExpression(expression.callee, path);
   }
 
   return types.callExpression(calleeExpression, args);

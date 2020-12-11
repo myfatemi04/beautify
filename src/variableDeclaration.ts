@@ -2,7 +2,7 @@ import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { getIdentifiersLValUses } from "./lval";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { rewriteSequenceExpressionStatementGetLastValue } from "./sequenceExpression";
 
 export function getIdentifiersVariableDeclarationUses(
@@ -34,11 +34,11 @@ export function getIdentifiersVariableDeclarationUses(
  * Rewrites a variable declaration. If the variable needs extra setup that would be better to have earlier in the code it splits up the setup into steps.
  *
  * @param statement Declarations to rewrite
- * @param scope Scope
+ * @param path path
  */
 export function rewriteVariableDeclaration(
   statement: types.VariableDeclaration,
-  scope: Scope
+  path: PathNode
 ): types.Statement[] {
   let statements: types.Statement[] = [];
   for (let declarator of statement.declarations) {
@@ -51,12 +51,12 @@ export function rewriteVariableDeclaration(
         let {
           value,
           preceeding,
-        } = rewriteSequenceExpressionStatementGetLastValue(init, scope);
+        } = rewriteSequenceExpressionStatementGetLastValue(init, path);
 
         init = value;
         statements.push(...preceeding);
       } else {
-        init = rewriteExpression(init, scope);
+        init = rewriteExpression(init, path);
       }
     }
 

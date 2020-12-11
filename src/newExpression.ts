@@ -1,17 +1,17 @@
 import * as types from "@babel/types";
 import { rewriteExpression } from "./expression";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 /**
  * When given new A(B), write A and B, in that order.
  */
 export function rewriteNewExpression(
   expression: types.NewExpression,
-  scope: Scope
+  path: PathNode
 ): types.NewExpression {
   let callee = expression.callee;
   if (callee.type !== "V8IntrinsicIdentifier") {
-    callee = rewriteExpression(callee, scope);
+    callee = rewriteExpression(callee, path);
   }
 
   return types.newExpression(callee, expression.arguments);

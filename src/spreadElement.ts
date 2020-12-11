@@ -1,13 +1,13 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function rewriteSpreadElement(
   spreadElement: types.SpreadElement,
-  scope: Scope
+  path: PathNode
 ): types.SpreadElement {
-  return types.spreadElement(rewriteExpression(spreadElement.argument, scope));
+  return types.spreadElement(rewriteExpression(spreadElement.argument, path));
 }
 
 export function getIdentifiersSpreadElementUses(

@@ -2,20 +2,20 @@ import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { rewriteExpressionStatement } from "./expressionStatement";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function rewriteSequenceExpressionStatement(
   sequence: types.SequenceExpression,
-  scope: Scope
+  path: PathNode
 ): types.ExpressionStatement[] {
   return sequence.expressions.map((expression) =>
-    types.expressionStatement(rewriteExpression(expression, scope))
+    types.expressionStatement(rewriteExpression(expression, path))
   );
 }
 
 export function rewriteSequenceExpressionStatementGetLastValue(
   sequence: types.SequenceExpression,
-  scope: Scope
+  path: PathNode
 ): { value: types.Expression; preceeding: types.ExpressionStatement[] } {
   if (sequence.expressions.length === 0) {
     return { value: sequence, preceeding: [] };
@@ -26,12 +26,12 @@ export function rewriteSequenceExpressionStatementGetLastValue(
   );
   let last = sequence.expressions[sequence.expressions.length - 1];
   return {
-    value: rewriteExpression(last, scope),
+    value: rewriteExpression(last, path),
     preceeding: [].concat(
       ...preceeding.map((expression) => {
         return rewriteExpressionStatement(
           types.expressionStatement(expression),
-          scope
+          path
         );
       })
     ),
@@ -40,11 +40,11 @@ export function rewriteSequenceExpressionStatementGetLastValue(
 
 export function rewriteSequenceExpression(
   sequence: types.SequenceExpression,
-  scope: Scope
+  path: PathNode
 ): types.SequenceExpression {
   return types.sequenceExpression(
     sequence.expressions.map((expression) =>
-      rewriteExpression(expression, scope)
+      rewriteExpression(expression, path)
     )
   );
 }

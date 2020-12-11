@@ -37,7 +37,7 @@ import {
   rewriteSequenceExpression,
 } from "./sequenceExpression";
 import { rewriteUnaryExpression } from "./unaryExpression";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { getIdentifiersArgumentsUse } from "./arguments";
 
 export function getIdentifiersExpressionUses(
@@ -132,35 +132,35 @@ export function getIdentifiersExpressionUses(
 
 export function rewriteExpression(
   expression: types.Expression,
-  scope: Scope
+  path: PathNode
 ): types.Expression {
   switch (expression.type) {
     case "ConditionalExpression":
-      return rewriteConditionalExpression(expression, scope);
+      return rewriteConditionalExpression(expression, path);
     case "UnaryExpression":
-      return rewriteUnaryExpression(expression, scope);
+      return rewriteUnaryExpression(expression, path);
     case "BinaryExpression":
-      return rewriteBinaryExpression(expression, scope);
+      return rewriteBinaryExpression(expression, path);
     case "SequenceExpression":
-      return rewriteSequenceExpression(expression, scope);
+      return rewriteSequenceExpression(expression, path);
     case "CallExpression":
-      return rewriteCallExpression(expression, scope);
+      return rewriteCallExpression(expression, path);
     case "AssignmentExpression":
-      return rewriteAssignmentExpression(expression, scope);
+      return rewriteAssignmentExpression(expression, path);
     case "ObjectExpression":
-      return rewriteObjectExpression(expression, scope);
+      return rewriteObjectExpression(expression, path);
     case "ArrayExpression":
-      return rewriteArrayExpression(expression, scope);
+      return rewriteArrayExpression(expression, path);
     case "MemberExpression":
-      return rewriteMemberExpression(expression, scope);
+      return rewriteMemberExpression(expression, path);
     case "OptionalMemberExpression":
-      return rewriteOptionalMemberExpression(expression, scope);
+      return rewriteOptionalMemberExpression(expression, path);
     case "NewExpression":
-      return rewriteNewExpression(expression, scope);
+      return rewriteNewExpression(expression, path);
     case "LogicalExpression":
-      return rewriteLogicalExpression(expression, scope);
+      return rewriteLogicalExpression(expression, path);
     case "ParenthesizedExpression":
-      return rewriteExpression(expression.expression, scope);
+      return rewriteExpression(expression.expression, path);
   }
 
   if (types.isLiteral(expression)) {
@@ -168,15 +168,15 @@ export function rewriteExpression(
   }
 
   if (types.isClassExpression(expression)) {
-    return rewriteClassExpression(expression, scope);
+    return rewriteClassExpression(expression, path);
   }
 
   if (types.isArrowFunctionExpression(expression)) {
-    return rewriteArrowFunctionExpression(expression, scope);
+    return rewriteArrowFunctionExpression(expression, path);
   }
 
   if (types.isFunctionExpression(expression)) {
-    return rewriteFunctionExpression(expression, scope);
+    return rewriteFunctionExpression(expression, path);
   }
 
   if (types.isUpdateExpression(expression)) {
@@ -191,11 +191,11 @@ export function rewriteExpression(
   }
 
   if (types.isYieldExpression(expression)) {
-    return types.yieldExpression(rewriteExpression(expression.argument, scope));
+    return types.yieldExpression(rewriteExpression(expression.argument, path));
   }
 
   if (types.isAwaitExpression(expression)) {
-    return types.awaitExpression(rewriteExpression(expression.argument, scope));
+    return types.awaitExpression(rewriteExpression(expression.argument, path));
   }
 
   console.log("rewriteExpression() needs", expression);

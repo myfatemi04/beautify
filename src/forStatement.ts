@@ -10,7 +10,7 @@ import {
   getIdentifiersVariableDeclarationUses,
   rewriteVariableDeclaration,
 } from "./variableDeclaration";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { IdentifierAccess } from "./IdentifierAccess";
 import { getIdentifiersLValUses } from "./lval";
 
@@ -18,11 +18,11 @@ import { getIdentifiersLValUses } from "./lval";
  * Rewrites a For statement. If there is more than one variable declaration
  * in the initializer, moves all but one to before the initializer.
  * @param statement For statement [for(let x = 0; x < a; x++)]
- * @param scope Scope
+ * @param path path
  */
 export function rewriteForStatement(
   statement: types.ForStatement,
-  scope: Scope
+  path: PathNode
 ): types.Statement[] {
   let preamble = [];
   let init = undefined;
@@ -30,23 +30,23 @@ export function rewriteForStatement(
 
   if (statement.init) {
     if (statement.init.type === "VariableDeclaration") {
-      let declarations = rewriteVariableDeclaration(statement.init, scope);
+      let declarations = rewriteVariableDeclaration(statement.init, path);
       preamble.push(...declarations);
     } else if (statement.init.type === "SequenceExpression") {
       let {
         value,
         preceeding,
-      } = rewriteSequenceExpressionStatementGetLastValue(statement.init, scope);
+      } = rewriteSequenceExpressionStatementGetLastValue(statement.init, path);
 
       init = value;
       preamble = preceeding;
     } else {
-      init = rewriteExpression(statement.init, scope);
+      init = rewriteExpression(statement.init, path);
     }
   }
 
   if (statement.test) {
-    test = rewriteExpression(statement.test, scope);
+    test = rewriteExpression(statement.test, path);
   }
 
   return [
@@ -55,7 +55,7 @@ export function rewriteForStatement(
       init,
       test,
       statement.update,
-      rewriteStatementWrapWithBlock(statement.body, scope)
+      rewriteStatementWrapWithBlock(statement.body, path)
     ),
   ];
 }
@@ -65,14 +65,14 @@ export function rewriteForStatement(
  * If the setup would be better split up, it splits it up.
  *
  * @param statement For of / For in statement (for let x of ...)
- * @param scope Scope
+ * @param path path
  */
 export function rewriteForOfInStatement(
   statement: types.ForOfStatement | types.ForInStatement,
-  scope: Scope
+  path: PathNode
 ): types.ForInStatement | types.ForOfStatement {
-  let rewrittenBody = rewriteStatement(statement.body, scope);
-  let right = rewriteExpression(statement.right, scope);
+  let rewrittenBody = rewriteStatement(statement.body, path);
+  let right = rewriteExpression(statement.right, path);
 
   return {
     ...statement,

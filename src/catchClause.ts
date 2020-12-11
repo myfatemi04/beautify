@@ -2,7 +2,7 @@ import * as types from "@babel/types";
 import { getIdentifiersFunctionParamsUse } from "./functionParams";
 import { getIdentifiersStatementUses } from "./statement";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { rewriteBlockStatement } from "./blockStatement";
 
 export function getIdentifiersCatchClauseUses(
@@ -19,14 +19,14 @@ export function getIdentifiersCatchClauseUses(
 /**
  * Rewrites the body of a catch clause
  * @param clause catch (e) {}
- * @param scope Scope
+ * @param path path
  */
 export function rewriteCatchClause(
   clause: types.CatchClause,
-  scope: Scope
+  path: PathNode
 ): types.CatchClause {
   return types.catchClause(
     clause.param,
-    rewriteBlockStatement(clause.body, scope)
+    rewriteBlockStatement(clause.body, path)
   );
 }

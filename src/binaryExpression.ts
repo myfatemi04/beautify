@@ -1,6 +1,6 @@
 import * as types from "@babel/types";
 import { rewriteExpression } from "./expression";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 /**
  * When given an expression using ==, ===, !==, !=, >, <, >=, <=, etc,
@@ -9,15 +9,15 @@ import { Scope } from "./scope";
  */
 export function rewriteBinaryExpression(
   expression: types.BinaryExpression,
-  scope: Scope
+  path: PathNode
 ): types.BinaryExpression {
   let { left, right, operator } = expression;
 
-  if (left.type !== "PrivateName") {
-    left = rewriteExpression(left, scope);
+  if (!types.isPrivateName(left)) {
+    left = rewriteExpression(left, path);
   }
 
-  right = rewriteExpression(right, scope);
+  right = rewriteExpression(right, path);
 
   return types.binaryExpression(operator, left, right);
 }

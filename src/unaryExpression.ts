@@ -1,6 +1,6 @@
 import * as types from "@babel/types";
 import { rewriteExpression } from "./expression";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function beautifyNegatedNumericLiteral(
   literal: types.NumericLiteral
@@ -10,25 +10,25 @@ export function beautifyNegatedNumericLiteral(
 
 export function rewriteNegatedUnaryExpressionArgument(
   argument: types.Expression,
-  scope: Scope
+  path: PathNode
 ): types.Expression {
   if (argument.type === "NumericLiteral") {
     // Convert !0 to true, and !1 to false.
     return beautifyNegatedNumericLiteral(argument);
   } else if (argument.type === "CallExpression") {
     // Remove "!" before (function(){})()
-    return rewriteExpression(argument, scope);
+    return rewriteExpression(argument, path);
   } else {
-    return types.unaryExpression("!", rewriteExpression(argument, scope));
+    return types.unaryExpression("!", rewriteExpression(argument, path));
   }
 }
 
 export function rewriteUnaryExpression(
   expression: types.UnaryExpression,
-  scope: Scope
+  path: PathNode
 ): types.UnaryExpression | types.Expression {
   if (expression.operator === "!") {
-    return rewriteNegatedUnaryExpressionArgument(expression.argument, scope);
+    return rewriteNegatedUnaryExpressionArgument(expression.argument, path);
   } else if (expression.operator === "void") {
     return types.identifier("undefined");
   }

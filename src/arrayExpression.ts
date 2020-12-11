@@ -1,12 +1,12 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { getIdentifiersSpreadElementUses } from "./spreadElement";
 
 export function rewriteArrayExpression(
   expression: types.ArrayExpression,
-  scope: Scope
+  path: PathNode
 ): types.ArrayExpression {
   return types.arrayExpression(
     expression.elements.map((element) => {
@@ -15,7 +15,7 @@ export function rewriteArrayExpression(
       } else if (element.type === "SpreadElement") {
         return element;
       } else {
-        return rewriteExpression(element, scope);
+        return rewriteExpression(element, path);
       }
     })
   );

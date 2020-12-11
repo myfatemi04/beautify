@@ -4,11 +4,11 @@ import {
   rewriteClassProperty,
   rewriteClassPrivateProperty,
 } from "./classProperty";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 
 export function rewriteClassBody(
   expression_: types.ClassBody,
-  scope: Scope
+  path: PathNode
 ): types.ClassBody {
   let body = [];
   for (let expression of expression_.body) {
@@ -16,14 +16,14 @@ export function rewriteClassBody(
       expression.type === "ClassMethod" ||
       expression.type === "ClassPrivateMethod"
     ) {
-      body.push(rewriteClassMethod(expression, scope));
+      body.push(rewriteClassMethod(expression, path));
     } else if (expression.type === "ClassProperty") {
-      body.push(rewriteClassProperty(expression, scope));
+      body.push(rewriteClassProperty(expression, path));
     } else if (expression.type === "ClassPrivateProperty") {
-      body.push(rewriteClassPrivateProperty(expression, scope));
+      body.push(rewriteClassPrivateProperty(expression, path));
     } else {
       // tsDeclareMethod, tsIndexSignature
-      body.push(expression, scope);
+      body.push(expression, path);
     }
   }
 

@@ -5,7 +5,7 @@ import {
   rewriteCatchClause,
 } from "./catchClause";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { Scope } from "./scope";
+import { PathNode } from "./path";
 import { getIdentifiersStatementUses } from "./statement";
 
 /**
@@ -13,19 +13,19 @@ import { getIdentifiersStatementUses } from "./statement";
  * Also rewrites the catch statement and finalizer if they exist
  *
  * @param statement try {} catch (e) {} finally {}
- * @param scope Scope
+ * @param path path
  */
 export function rewriteTryStatement(
   statement: types.TryStatement,
-  scope: Scope
+  path: PathNode
 ): types.TryStatement {
-  let block = rewriteBlockStatement(statement.block, scope);
+  let block = rewriteBlockStatement(statement.block, path);
   let handler = statement.handler
-    ? rewriteCatchClause(statement.handler, scope)
+    ? rewriteCatchClause(statement.handler, path)
     : undefined;
 
   let finalizer = statement.finalizer
-    ? rewriteBlockStatement(statement.finalizer, scope)
+    ? rewriteBlockStatement(statement.finalizer, path)
     : undefined;
 
   return types.tryStatement(block, handler, finalizer);
