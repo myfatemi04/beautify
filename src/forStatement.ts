@@ -121,6 +121,7 @@ export function getIdentifiersForOfInStatementUses(
     identifiers.push(...getIdentifiersVariableDeclarationUses(statement.left));
   }
 
+  identifiers.push(...getIdentifiersExpressionUses(statement.right));
   identifiers.push(...getIdentifiersStatementUses(statement.body));
 
   return identifiers;

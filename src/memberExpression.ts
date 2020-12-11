@@ -9,6 +9,7 @@ export function getIdentifiersMemberExpressionUses(
   expression: types.MemberExpression
 ): IdentifierAccess[] {
   let identifiers: IdentifierAccess[] = [];
+
   identifiers.push(...getIdentifiersExpressionUses(expression.object));
 
   if (expression.computed) {

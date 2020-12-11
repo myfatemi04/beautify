@@ -1,28 +1,24 @@
 import * as types from "@babel/types";
-import { rewriteScopedStatementArray } from "./statementArray";
 import { PathNode } from "./path";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { getIdentifiersFunctionParamsUse } from "./functionParams";
-import { getIdentifiersStatementUses } from "./statement";
+import { getIdentifiersMethodUses } from "./method";
 
 export function rewriteFunctionDeclaration(
   declaration: types.FunctionDeclaration,
   path: PathNode
 ): types.FunctionDeclaration {
+  let rewriter = new PathNode(declaration.body.body, true, path);
+  rewriter.rewrite();
+
   return types.functionDeclaration(
     declaration.id,
     declaration.params,
-    types.blockStatement(
-      rewriteScopedStatementArray(declaration.body.body, path)
-    )
+    types.blockStatement(rewriter.body)
   );
 }
 
 export function getIdentifiersFunctionDeclarationUses(
   statement: types.FunctionDeclaration
 ): IdentifierAccess[] {
-  return [
-    ...getIdentifiersFunctionParamsUse(statement.params),
-    ...getIdentifiersStatementUses(statement.body),
-  ];
+  return getIdentifiersMethodUses(statement);
 }

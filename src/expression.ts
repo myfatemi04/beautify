@@ -39,6 +39,7 @@ import {
 import { rewriteUnaryExpression } from "./unaryExpression";
 import { PathNode } from "./path";
 import { getIdentifiersArgumentsUse } from "./arguments";
+import { getIdentifiersMethodUses } from "./method";
 
 export function getIdentifiersExpressionUses(
   expression: types.Expression
@@ -109,20 +110,8 @@ export function getIdentifiersExpressionUses(
       return [];
 
     case "ArrowFunctionExpression":
-    case "FunctionExpression": {
-      // TODO make this better-suited for scope changes
-      let identifiers: IdentifierAccess[] = [];
-
-      identifiers.push(...getIdentifiersFunctionParamsUse(expression.params));
-
-      if (types.isExpression(expression.body)) {
-        identifiers.push(...getIdentifiersExpressionUses(expression.body));
-      } else if (types.isStatement(expression.body)) {
-        identifiers.push(...getIdentifiersStatementUses(expression.body));
-      }
-
-      return identifiers;
-    }
+    case "FunctionExpression":
+      return getIdentifiersMethodUses(expression);
   }
 
   console.warn("getIdentifiersExpressionUses() needs case", expression);

@@ -3,14 +3,15 @@ import {
   getIdentifiersObjectPropertyUses,
   rewriteObjectProperty,
 } from "./objectProperty";
-import { rewriteObjectMethod } from "./objectMethod";
+import {
+  getIdentifiersObjectMethodUses,
+  rewriteObjectMethod,
+} from "./objectMethod";
 import {
   getIdentifiersSpreadElementUses,
   rewriteSpreadElement,
 } from "./spreadElement";
 import { PathNode } from "./path";
-import { combine } from "./combine";
-import { getIdentifiersExpressionUses } from "./expression";
 import { IdentifierAccess } from "./IdentifierAccess";
 
 export function rewriteObjectExpression(
@@ -39,10 +40,14 @@ export function getIdentifiersObjectExpressionUses(
 ): IdentifierAccess[] {
   let identifiers: IdentifierAccess[] = [];
   for (let property of expression.properties) {
-    if (property.type === "SpreadElement") {
+    if (types.isSpreadElement(property)) {
       identifiers.push(...getIdentifiersSpreadElementUses(property));
-    } else if (property.type === "ObjectProperty") {
+    } else if (types.isObjectProperty(property)) {
       identifiers.push(...getIdentifiersObjectPropertyUses(property));
+    } else if (types.isObjectMethod(property)) {
+      identifiers.push(...getIdentifiersObjectMethodUses(property));
+    } else {
+      throw new Error("Invalid object expression property " + property);
     }
   }
   return identifiers;

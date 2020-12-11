@@ -38,5 +38,15 @@ export function getIdentifiersFunctionParamsUse(
     }
   }
 
-  return identifiers;
+  return identifiers.map((identifierAccess) => {
+    // change "set" to "define"
+    if (identifierAccess.type === "set") {
+      return <IdentifierAccess>{
+        type: "define",
+        id: identifierAccess.id,
+      };
+    } else {
+      return identifierAccess;
+    }
+  });
 }

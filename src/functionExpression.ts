@@ -1,6 +1,5 @@
 import * as types from "@babel/types";
 import { PathNode } from "./path";
-import { rewriteScopedStatementArray } from "./statementArray";
 
 /**
  * Rewrites the body of a function expression and converts
@@ -12,11 +11,12 @@ export function rewriteFunctionExpression(
   expression: types.FunctionExpression,
   path: PathNode
 ): types.ArrowFunctionExpression {
+  let rewriter = new PathNode(expression.body.body, true, path);
+  rewriter.rewrite();
+
   // Rewrite as arrow expression
   return types.arrowFunctionExpression(
     expression.params,
-    types.blockStatement(
-      rewriteScopedStatementArray(expression.body.body, path)
-    )
+    types.blockStatement(rewriter.body)
   );
 }

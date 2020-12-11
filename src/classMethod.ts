@@ -1,41 +1,23 @@
 import * as types from "@babel/types";
-import { getIdentifiersPatternLikeUses } from "./patternLike";
-import { getIdentifiersAssignmentPatternUses } from "./pattern";
 import { IdentifierAccess } from "./IdentifierAccess";
-import { rewriteBlockStatement } from "./blockStatement";
 import { PathNode } from "./path";
+import { getIdentifiersMethodUses } from "./method";
 
 export function getIdentifiersClassMethodUses(
   method: types.ClassMethod | types.ClassPrivateMethod
 ): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
-
-  for (let param of method.params) {
-    if (types.isPatternLike(param)) {
-      identifiers.push(...getIdentifiersPatternLikeUses(param));
-    } else if (param.type === "TSParameterProperty") {
-      // TS Parameter [e.g. constructor(private a: string)]
-      // The param can be an identifier or assignment pattern and is treated
-      // like it were a regular function parameter.
-      if (types.isIdentifier(param)) {
-        identifiers.push({ type: "set", id: param });
-      } else if (types.isAssignmentPattern(param)) {
-        identifiers.push(...getIdentifiersAssignmentPatternUses(param));
-      } else {
-        throw new Error("Invalid TS Parameter Property: " + param);
-      }
-    }
-  }
-
-  return identifiers;
+  return getIdentifiersMethodUses(method);
 }
 
 export function rewriteClassMethod(
-  expression: types.ClassMethod | types.ClassPrivateMethod,
+  method: types.ClassMethod | types.ClassPrivateMethod,
   path: PathNode
 ): types.ClassMethod | types.ClassPrivateMethod {
+  let rewriter = new PathNode(method.body.body, true, path);
+  rewriter.rewrite();
+
   return {
-    ...expression,
-    body: rewriteBlockStatement(expression.body, path),
+    ...method,
+    body: types.blockStatement(rewriter.body),
   };
 }

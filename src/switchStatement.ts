@@ -1,9 +1,9 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
-import { rewriteStatementArray } from "./statementArray";
 import { PathNode } from "./path";
 import { IdentifierAccess } from "./IdentifierAccess";
 import { getIdentifiersSwitchCaseUses } from "./switchCase";
+import { rewriteStatement } from "./statement";
 
 export function rewriteSwitchCase(
   case_: types.SwitchCase,
@@ -12,9 +12,12 @@ export function rewriteSwitchCase(
   // preambles are NOT allowed
   // if test = undefined, it's a "default" case
   let test = case_.test ? rewriteExpression(case_.test, path) : undefined;
-  let consequent = rewriteStatementArray(case_.consequent, path);
+  let newStatements: types.Statement[] = [];
+  for (let statement of case_.consequent) {
+    newStatements.push(...rewriteStatement(statement, path));
+  }
 
-  return types.switchCase(test, consequent);
+  return types.switchCase(test, newStatements);
 }
 
 export function rewriteSwitchStatement(

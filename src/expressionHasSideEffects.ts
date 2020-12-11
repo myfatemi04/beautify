@@ -26,7 +26,7 @@ export default function expressionHasSideEffects(
 
   if (types.isArrayExpression(expression)) {
     for (let element of expression.elements) {
-      if (element.type !== "SpreadElement") {
+      if (element && element.type !== "SpreadElement") {
         if (expressionHasSideEffects(element)) {
           return true;
         }
@@ -48,10 +48,12 @@ export default function expressionHasSideEffects(
           return true;
         }
 
-        if (types.isPatternLike(property.value)) {
-          // todo check this later
-          // i have no idea wtf patterns are and if they have side effects
-          return true;
+        if (types.isPattern(property.value)) {
+          throw new Error("Pattern found in ObjectProperty");
+        }
+
+        if (types.isRestElement(property.value)) {
+          throw new Error("RestElement found in ObjectProperty");
         }
 
         if (expressionHasSideEffects(property.value)) {
