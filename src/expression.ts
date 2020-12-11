@@ -32,53 +32,24 @@ import {
   getIdentifiersObjectExpressionUses,
   rewriteObjectExpression,
 } from "./objectExpression";
-import { rewriteSequenceExpression } from "./sequenceExpression";
+import {
+  getIdentifiersSequenceExpressionUses,
+  rewriteSequenceExpression,
+} from "./sequenceExpression";
 import { rewriteUnaryExpression } from "./unaryExpression";
 import { Scope } from "./scope";
-
-export function getIdentifiersExpressionsUse(
-  expressions: (
-    | types.Expression
-    | types.SpreadElement
-    | types.JSXNamespacedName
-    | types.ArgumentPlaceholder
-  )[]
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[][] = expressions.map((element) => {
-    if (element == null) {
-      return [];
-    }
-
-    if (element.type !== "ArgumentPlaceholder") {
-      return getIdentifiersExpressionUses(element);
-    } else {
-      return [];
-    }
-  });
-
-  return [].concat(...identifiers);
-}
+import { getIdentifiersArgumentsUse } from "./arguments";
 
 export function getIdentifiersExpressionUses(
-  expression: types.Expression | types.SpreadElement | types.JSXNamespacedName
+  expression: types.Expression | types.JSXNamespacedName
 ): IdentifierAccess[] {
   switch (expression.type) {
-    case "SpreadElement":
     case "UnaryExpression":
+    case "UpdateExpression":
       return getIdentifiersExpressionUses(expression.argument);
 
-    case "UpdateExpression":
-      if (expression.argument.type === "Identifier") {
-        return [
-          { type: "get", id: expression.argument },
-          { type: "set", id: expression.argument },
-        ];
-      } else {
-        return getIdentifiersExpressionUses(expression.argument);
-      }
-
     case "SequenceExpression":
-      return getIdentifiersExpressionsUse(expression.expressions);
+      return getIdentifiersSequenceExpressionUses(expression);
 
     case "Identifier":
       return [{ type: "get", id: expression }];
@@ -108,7 +79,7 @@ export function getIdentifiersExpressionUses(
     case "NewExpression":
       return [
         ...getIdentifiersCalleeUses(expression.callee),
-        ...getIdentifiersExpressionsUse(expression.arguments),
+        ...getIdentifiersArgumentsUse(expression.arguments),
       ];
 
     case "ArrayExpression":

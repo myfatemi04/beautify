@@ -1,6 +1,7 @@
 import * as types from "@babel/types";
-import { rewriteExpression } from "./expression";
+import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { rewriteExpressionStatement } from "./expressionStatement";
+import { IdentifierAccess } from "./IdentifierAccess";
 import { Scope } from "./scope";
 
 export function rewriteSequenceExpressionStatement(
@@ -46,4 +47,15 @@ export function rewriteSequenceExpression(
       rewriteExpression(expression, scope)
     )
   );
+}
+
+export function getIdentifiersSequenceExpressionUses(
+  expression: types.SequenceExpression
+): IdentifierAccess[] {
+  let identifiers: IdentifierAccess[] = [];
+  for (let expression_ of expression.expressions) {
+    identifiers.push(...getIdentifiersExpressionUses(expression_));
+  }
+
+  return identifiers;
 }
