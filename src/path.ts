@@ -78,16 +78,10 @@ export class PathNode {
   isVariableUsedLater(name: string): boolean {
     for (let statement of this.getFollowingStatements()) {
       let identifierAccesses = getIdentifiersStatementUses(statement);
-      for (let access of identifierAccesses) {
-        if (access.id.name === name) {
-          if (access.type === "get") {
-            return true;
-          } else if (access.type === "set") {
-            return false;
-          } else {
-            // it's a "define" type, so we don't know anything from here
-          }
-        }
+      if (identifierAccesses.get.has(name)) {
+        return true;
+      } else if (identifierAccesses.set.has(name)) {
+        return false;
       }
     }
 
@@ -111,10 +105,8 @@ export class PathNode {
   isVariableUpdatedLater(name: string): boolean {
     for (let statement of this.getFollowingStatements()) {
       let identifierAccesses = getIdentifiersStatementUses(statement);
-      for (let access of identifierAccesses) {
-        if (access.id.name === name && access.type === "set") {
-          return true;
-        }
+      if (identifierAccesses.set.has(name)) {
+        return true;
       }
     }
 
@@ -209,11 +201,11 @@ export class PathNode {
             types.variableDeclaration(
               "let",
               statement.declarations.map((declarator) => {
-                for (let identifier of getIdentifiersLValUses(declarator.id)) {
-                  if (identifier.type === "set") {
-                    this.declareInBlock(identifier.id.name);
+                getIdentifiersLValUses(declarator.id).set.forEach(
+                  (identifier) => {
+                    this.declareInBlock(identifier);
                   }
-                }
+                );
 
                 return declarator;
               })
@@ -256,6 +248,10 @@ export class PathNode {
     this.body = body;
   }
 
+  undeclareThisBlock(name: string) {
+    delete this.blockDeclaredVariables[name];
+  }
+
   removeUnusedIdentifiers() {
     this.index = 0;
     let body = [];
@@ -267,10 +263,12 @@ export class PathNode {
           for (let declaration of statement.declarations) {
             if (types.isIdentifier(declaration.id)) {
               if (!this.isVariableUsedLater(declaration.id.name)) {
+                this.undeclareThisBlock(declaration.id.name);
                 // check if the initializer has side effects
                 if (expressionHasSideEffects(declaration.init)) {
                   body.push(types.expressionStatement(declaration.init));
                 }
+                console.log("Found unused:", generate(statement).code);
                 foundUnused = true;
                 break checkBlock;
               }
@@ -305,7 +303,6 @@ export class PathNode {
 
     // if another unused identifier is found, remove them again
     if (foundUnused) {
-      console.log("removing unused variable again");
       this.removeUnusedIdentifiers();
     }
   }

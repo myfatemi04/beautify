@@ -1,7 +1,11 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { PathNode } from "./path";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { getIdentifiersSwitchCaseUses } from "./switchCase";
 import { rewriteStatement } from "./statement";
 
@@ -31,14 +35,17 @@ export function rewriteSwitchStatement(
 
 export function getIdentifiersSwitchStatementUses(
   statement: types.SwitchStatement
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   types.assertSwitchStatement(statement);
 
-  let identifiers: IdentifierAccess[] = [];
-  identifiers.push(...getIdentifiersExpressionUses(statement.discriminant));
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
+  identifiers = concat(
+    identifiers,
+    getIdentifiersExpressionUses(statement.discriminant)
+  );
 
   for (let case_ of statement.cases) {
-    identifiers.push(...getIdentifiersSwitchCaseUses(case_));
+    identifiers = concat(identifiers, getIdentifiersSwitchCaseUses(case_));
   }
 
   return identifiers;

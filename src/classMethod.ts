@@ -1,11 +1,11 @@
 import * as types from "@babel/types";
-import { IdentifierAccess } from "./IdentifierAccess";
+import { IdentifierAccess_ } from "./IdentifierAccess";
 import { PathNode } from "./path";
 import { getIdentifiersMethodUses } from "./method";
 
 export function getIdentifiersClassMethodUses(
   method: types.ClassMethod | types.ClassPrivateMethod
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   return getIdentifiersMethodUses(method);
 }
 

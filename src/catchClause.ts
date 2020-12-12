@@ -1,17 +1,24 @@
 import * as types from "@babel/types";
 import { getIdentifiersFunctionParamsUse } from "./functionParams";
 import { getIdentifiersStatementUses } from "./statement";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { PathNode } from "./path";
 import { rewriteBlockStatement } from "./blockStatement";
 
 export function getIdentifiersCatchClauseUses(
   statement: types.CatchClause
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
 
-  identifiers.push(...getIdentifiersFunctionParamsUse([statement.param]));
-  identifiers.push(...getIdentifiersStatementUses(statement.body));
+  identifiers = concat(
+    identifiers,
+    getIdentifiersFunctionParamsUse([statement.param]),
+    getIdentifiersStatementUses(statement.body)
+  );
 
   return identifiers;
 }

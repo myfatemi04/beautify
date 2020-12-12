@@ -1,9 +1,9 @@
 import * as types from "@babel/types";
 import { getIdentifiersLValUses } from "./lval";
-import { IdentifierAccess } from "./IdentifierAccess";
+import { IdentifierAccess_ } from "./IdentifierAccess";
 
 export function getIdentifiersRestElementUses(
   element: types.RestElement
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   return getIdentifiersLValUses(element.argument);
 }

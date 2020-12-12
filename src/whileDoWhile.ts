@@ -5,7 +5,7 @@ import {
   rewriteStatementWrapWithBlock,
 } from "./statement";
 import { PathNode } from "./path";
-import { IdentifierAccess } from "./IdentifierAccess";
+import { concat, IdentifierAccess_ } from "./IdentifierAccess";
 
 export function rewriteDoWhileStatement(
   statement: types.DoWhileStatement,
@@ -30,9 +30,9 @@ export function rewriteWhileStatement(
 
 export function getIdentifiersWhileDoWhileStatementUses(
   statement: types.WhileStatement | types.DoWhileStatement
-): IdentifierAccess[] {
-  return [
-    ...getIdentifiersExpressionUses(statement.test),
-    ...getIdentifiersStatementUses(statement.body),
-  ];
+): IdentifierAccess_ {
+  return concat(
+    getIdentifiersExpressionUses(statement.test),
+    getIdentifiersStatementUses(statement.body)
+  );
 }

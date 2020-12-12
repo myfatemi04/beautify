@@ -1,13 +1,13 @@
 import * as types from "@babel/types";
-import { combine } from "./combine";
-import { getIdentifiersFunctionParamsUse } from "./functionParams";
-import { getIdentifiersLValUses } from "./lval";
+import generate from "@babel/generator";
 import { getIdentifiersMemberExpressionUses } from "./memberExpression";
-import { getIdentifiersObjectPropertyUses } from "./objectProperty";
 import { getIdentifiersPrivateNameUses } from "./privateName";
-import { getIdentifiersStatementUses } from "./statement";
 import { getIdentifiersCalleeUses } from "./callee";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import {
   getIdentifiersArrayExpressionUses,
   rewriteArrayExpression,
@@ -41,17 +41,20 @@ import { PathNode } from "./path";
 import { getIdentifiersArgumentsUse } from "./arguments";
 import { getIdentifiersMethodUses } from "./method";
 import { getIdentifiersClassBodyUses } from "./classBody";
+import { mergeUncertainAccesses } from "./mergeUncertainAccesses";
 
 export function getIdentifiersExpressionUses(
   expression: types.Expression
-): IdentifierAccess[] {
+): IdentifierAccess_ {
+  let identifiers = createIdentifierAccess();
   switch (expression.type) {
     case "UnaryExpression":
       return getIdentifiersExpressionUses(expression.argument);
 
     case "UpdateExpression":
       if (expression.argument.type === "Identifier") {
-        return [{ type: "set", id: expression.argument }];
+        identifiers.set.add(expression.argument.name);
+        return identifiers;
       } else if (expression.argument.type === "MemberExpression") {
         return getIdentifiersMemberExpressionUses(expression.argument);
       } else {
@@ -64,35 +67,50 @@ export function getIdentifiersExpressionUses(
       return getIdentifiersSequenceExpressionUses(expression);
 
     case "Identifier":
-      return [{ type: "get", id: expression }];
+      identifiers.get.add(expression.name);
+      return identifiers;
+    // throw new Error(
+    //   "getIdentifiersExpressionUses() called on identifier " +
+    //     generate(expression).code
+    // );
 
     case "ConditionalExpression":
-      return [
-        ...getIdentifiersExpressionUses(expression.test),
-        ...getIdentifiersExpressionUses(expression.consequent),
-        ...getIdentifiersExpressionUses(expression.alternate),
-      ];
+      return concat(
+        getIdentifiersExpressionUses(expression.test),
+        mergeUncertainAccesses(
+          getIdentifiersExpressionUses(expression.consequent),
+          getIdentifiersExpressionUses(expression.alternate)
+        )
+      );
 
     case "BinaryExpression":
     case "LogicalExpression": {
-      let identifiers = [];
       if (types.isPrivateName(expression.left)) {
-        identifiers.push(...getIdentifiersPrivateNameUses(expression.left));
+        identifiers = concat(
+          identifiers,
+          getIdentifiersPrivateNameUses(expression.left)
+        );
       } else {
-        identifiers.push(...getIdentifiersExpressionUses(expression.left));
+        identifiers = concat(
+          identifiers,
+          getIdentifiersExpressionUses(expression.left)
+        );
       }
 
-      identifiers.push(...getIdentifiersExpressionUses(expression.right));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersExpressionUses(expression.right)
+      );
 
       return identifiers;
     }
 
     case "CallExpression":
     case "NewExpression":
-      return [
-        ...getIdentifiersCalleeUses(expression.callee),
-        ...getIdentifiersArgumentsUse(expression.arguments),
-      ];
+      return concat(
+        getIdentifiersCalleeUses(expression.callee),
+        getIdentifiersArgumentsUse(expression.arguments)
+      );
 
     case "ArrayExpression":
       return getIdentifiersArrayExpressionUses(expression);
@@ -119,7 +137,7 @@ export function getIdentifiersExpressionUses(
     case "NullLiteral":
     case "ThisExpression":
     case "Super":
-      return [];
+      return createIdentifierAccess();
 
     case "ClassExpression":
       return getIdentifiersClassBodyUses(expression.body);
@@ -131,7 +149,7 @@ export function getIdentifiersExpressionUses(
 
   console.warn("getIdentifiersExpressionUses() needs case", expression);
 
-  return [];
+  return createIdentifierAccess();
 }
 
 export function rewriteExpression(

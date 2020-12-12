@@ -1,9 +1,12 @@
 import * as types from "@babel/types";
 import { rewriteClassBody } from "./classBody";
 import { getIdentifiersClassMethodUses } from "./classMethod";
-import { combine } from "./combine";
 import { getIdentifiersExpressionUses } from "./expression";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { PathNode } from "./path";
 
 export function rewriteClassDeclaration(
@@ -20,14 +23,14 @@ export function rewriteClassDeclaration(
 
 export function getIdentifiersClassDeclarationUses(
   statement: types.ClassDeclaration
-): IdentifierAccess[] {
-  return combine(
+): IdentifierAccess_ {
+  return concat(
     statement.superClass
       ? getIdentifiersExpressionUses(statement.superClass)
-      : [],
+      : createIdentifierAccess(),
     ...statement.body.body.map((line) => {
       if (line.type === "TSDeclareMethod" || line.type === "TSIndexSignature") {
-        return [];
+        return createIdentifierAccess();
       } else if (line.type === "ClassMethod") {
         return getIdentifiersClassMethodUses(line);
       } else if (line.type === "ClassPrivateMethod") {
@@ -36,13 +39,13 @@ export function getIdentifiersClassDeclarationUses(
         if (line.value) {
           return getIdentifiersExpressionUses(line.value);
         } else {
-          return [];
+          return createIdentifierAccess();
         }
       } else if (line.type === "ClassPrivateProperty") {
         if (line.value) {
           return getIdentifiersExpressionUses(line.value);
         } else {
-          return [];
+          return createIdentifierAccess();
         }
       } else {
         throw new Error("Invalid class body line " + line);

@@ -4,32 +4,40 @@ import {
   getIdentifiersPatternUses,
 } from "./pattern";
 import { getIdentifiersRestElementUses } from "./restElement";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+  mergeIdentifiersOr,
+} from "./IdentifierAccess";
 import { FunctionParam } from "./params";
 
 export function getIdentifiersFunctionParamsUse(
   params: FunctionParam[]
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
 
   for (let param of params) {
     if (types.isPattern(param)) {
       // Pattern-like: all of the identifiers area "set"
-      identifiers.push(...getIdentifiersPatternUses(param));
+      identifiers = concat(identifiers, getIdentifiersPatternUses(param));
     } else if (types.isIdentifier(param)) {
       // Identifier: this identifier is "set" (instantiated from the function)
-      identifiers.push({ type: "define", id: param });
+      identifiers.define.add(param.name);
     } else if (types.isRestElement(param)) {
       // Rest element: whatever content in the Rest Element is "set"
-      identifiers.push(...getIdentifiersRestElementUses(param));
+      identifiers = concat(identifiers, getIdentifiersRestElementUses(param));
     } else if (types.isTSParameterProperty(param)) {
       // TS Parameter [e.g. constructor(private a: string)]
       // The param can be an identifier or assignment pattern and is treated
       // like it were a regular function parameter.
-      if (types.isIdentifier(param)) {
-        identifiers.push({ type: "define", id: param });
+      if (types.isIdentifier(param.parameter)) {
+        identifiers.define.add(param.parameter.name);
       } else if (types.isAssignmentPattern(param)) {
-        identifiers.push(...getIdentifiersAssignmentPatternUses(param));
+        identifiers = concat(
+          identifiers,
+          getIdentifiersAssignmentPatternUses(param)
+        );
       } else {
         throw new Error("Invalid TS Parameter Property: " + param);
       }
@@ -38,15 +46,7 @@ export function getIdentifiersFunctionParamsUse(
     }
   }
 
-  return identifiers.map((identifierAccess) => {
-    // change "set" to "define"
-    if (identifierAccess.type === "set") {
-      return <IdentifierAccess>{
-        type: "define",
-        id: identifierAccess.id,
-      };
-    } else {
-      return identifierAccess;
-    }
-  });
+  identifiers.define = mergeIdentifiersOr(identifiers.define, identifiers.set);
+  identifiers.set = new Set<string>();
+  return identifiers;
 }

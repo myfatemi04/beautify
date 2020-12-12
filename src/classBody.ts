@@ -8,7 +8,11 @@ import {
   rewriteClassPrivateProperty,
   getIdentifiersClassPropertyUses,
 } from "./classProperty";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { PathNode } from "./path";
 
 export function rewriteClassBody(
@@ -40,17 +44,17 @@ export function rewriteClassBody(
 
 export function getIdentifiersClassBodyUses(
   body: types.ClassBody
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
 
   for (let line of body.body) {
     if (line.type === "ClassMethod" || line.type === "ClassPrivateMethod") {
-      identifiers.push(...getIdentifiersClassMethodUses(line));
+      identifiers = concat(identifiers, getIdentifiersClassMethodUses(line));
     } else if (
       line.type === "ClassPrivateProperty" ||
       line.type === "ClassProperty"
     ) {
-      identifiers.push(...getIdentifiersClassPropertyUses(line));
+      identifiers = concat(identifiers, getIdentifiersClassPropertyUses(line));
     } else {
       throw new Error(
         "getIdentifiersClassBodyUses() doesn't handle case " + line

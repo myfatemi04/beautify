@@ -1,22 +1,35 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { getIdentifiersPrivateNameUses } from "./privateName";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import hasSpecialCharacters from "./hasSpecialCharacters";
 import { PathNode } from "./path";
 
 export function getIdentifiersMemberExpressionUses(
   expression: types.MemberExpression
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
 
-  identifiers.push(...getIdentifiersExpressionUses(expression.object));
+  identifiers = concat(
+    identifiers,
+    getIdentifiersExpressionUses(expression.object)
+  );
 
   if (expression.computed) {
     if (types.isPrivateName(expression.property)) {
-      identifiers.push(...getIdentifiersPrivateNameUses(expression.property));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersPrivateNameUses(expression.property)
+      );
     } else {
-      identifiers.push(...getIdentifiersExpressionUses(expression.property));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersExpressionUses(expression.property)
+      );
     }
   } else {
     // don't do anything if not computed

@@ -1,32 +1,31 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { getIdentifiersLValUses } from "./lval";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { PathNode } from "./path";
 import { rewriteSequenceExpressionStatementGetLastValue } from "./sequenceExpression";
 
 export function getIdentifiersVariableDeclarationUses(
   declaration_: types.VariableDeclaration
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
   for (let declaration of declaration_.declarations) {
     if (declaration.init) {
       let i = getIdentifiersExpressionUses(declaration.init);
-      identifiers.push(...i);
+      identifiers = concat(identifiers, i);
     }
 
-    identifiers.push(
-      ...getIdentifiersLValUses(declaration.id).map((access) => {
-        if (access.type === "set") {
-          return <IdentifierAccess>{
-            type: "define",
-            id: access.id,
-          };
-        } else {
-          return access;
-        }
-      })
-    );
+    let idIdentifiers = getIdentifiersLValUses(declaration.id);
+
+    // Anything that was "set" is now "define" instead, because it was defined in this block
+    idIdentifiers.define = idIdentifiers.set;
+    idIdentifiers.set = new Set<string>();
+
+    identifiers = concat(identifiers, idIdentifiers);
   }
   return identifiers;
 }

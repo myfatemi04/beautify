@@ -1,6 +1,10 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { PathNode } from "./path";
 import { getIdentifiersSpreadElementUses } from "./spreadElement";
 
@@ -23,18 +27,21 @@ export function rewriteArrayExpression(
 
 export function getIdentifiersArrayExpressionUses(
   expression: types.ArrayExpression
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   // some elements in array expressions can be null; filter them out
-  let identifiers: IdentifierAccess[] = [];
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
   for (let element of expression.elements) {
     if (element == null) {
       continue;
     }
 
     if (types.isExpression(element)) {
-      identifiers.push(...getIdentifiersExpressionUses(element));
+      identifiers = concat(identifiers, getIdentifiersExpressionUses(element));
     } else if (types.isSpreadElement(element)) {
-      identifiers.push(...getIdentifiersSpreadElementUses(element));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersSpreadElementUses(element)
+      );
     } else {
       throw new Error("ArrayExpression cannot have element " + element);
     }

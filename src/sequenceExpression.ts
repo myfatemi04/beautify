@@ -1,7 +1,11 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { rewriteExpressionStatement } from "./expressionStatement";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  createIdentifierAccess,
+  IdentifierAccess_,
+  mergeSequentialIdentifiers,
+} from "./IdentifierAccess";
 import { PathNode } from "./path";
 
 export function rewriteSequenceExpressionStatement(
@@ -55,10 +59,13 @@ export function rewriteSequenceExpression(
 
 export function getIdentifiersSequenceExpressionUses(
   expression: types.SequenceExpression
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
   for (let expression_ of expression.expressions) {
-    identifiers.push(...getIdentifiersExpressionUses(expression_));
+    identifiers = mergeSequentialIdentifiers(
+      identifiers,
+      getIdentifiersExpressionUses(expression_)
+    );
   }
 
   return identifiers;

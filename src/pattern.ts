@@ -3,8 +3,11 @@ import { getIdentifiersExpressionUses } from "./expression";
 import { getIdentifiersLValUses } from "./lval";
 import { getIdentifiersPatternLikeUses } from "./patternLike";
 import { getIdentifiersRestElementUses } from "./restElement";
-import { IdentifierAccess } from "./IdentifierAccess";
-import expressionHasSideEffects from "./expressionHasSideEffects";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 
 /*
  * PATTERNS
@@ -18,26 +21,29 @@ import expressionHasSideEffects from "./expressionHasSideEffects";
  */
 export function getIdentifiersAssignmentPatternUses(
   pattern: types.AssignmentPattern
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
 
   // the left value: we are setting any identifiers found here
-  identifiers.push(...getIdentifiersLValUses(pattern.left));
+  identifiers = concat(identifiers, getIdentifiersLValUses(pattern.left));
 
   // the default value: we are using any identifiers found here
-  identifiers.push(...getIdentifiersExpressionUses(pattern.right));
+  identifiers = concat(
+    identifiers,
+    getIdentifiersExpressionUses(pattern.right)
+  );
 
   return identifiers;
 }
 
 export function getIdentifiersArrayPatternUses(
   pattern: types.ArrayPattern
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
 
   for (let element of pattern.elements) {
     if (element != null) {
-      identifiers.push(...getIdentifiersLValUses(element));
+      identifiers = concat(identifiers, getIdentifiersLValUses(element));
     }
   }
 
@@ -46,18 +52,27 @@ export function getIdentifiersArrayPatternUses(
 
 export function getIdentifiersObjectPatternUses(
   pattern: types.ObjectPattern
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
 
   for (let property of pattern.properties) {
     if (types.isObjectProperty(property)) {
       if (types.isPatternLike(property.value)) {
-        identifiers.push(...getIdentifiersPatternLikeUses(property.value));
+        identifiers = concat(
+          identifiers,
+          getIdentifiersPatternLikeUses(property.value)
+        );
       } else {
-        identifiers.push(...getIdentifiersExpressionUses(property.value));
+        identifiers = concat(
+          identifiers,
+          getIdentifiersExpressionUses(property.value)
+        );
       }
     } else if (types.isRestElement(property)) {
-      identifiers.push(...getIdentifiersRestElementUses(property));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersRestElementUses(property)
+      );
     } else {
       throw new Error("Object property invalid: " + property);
     }
@@ -68,7 +83,7 @@ export function getIdentifiersObjectPatternUses(
 
 export function getIdentifiersPatternUses(
   pattern: types.Pattern
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   if (types.isArrayPattern(pattern)) {
     return getIdentifiersArrayPatternUses(pattern);
   } else if (types.isObjectPattern(pattern)) {

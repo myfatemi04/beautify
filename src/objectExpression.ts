@@ -12,7 +12,11 @@ import {
   rewriteSpreadElement,
 } from "./spreadElement";
 import { PathNode } from "./path";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 
 export function rewriteObjectExpression(
   expression: types.ObjectExpression,
@@ -37,15 +41,24 @@ export function rewriteObjectExpression(
 
 export function getIdentifiersObjectExpressionUses(
   expression: types.ObjectExpression
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
   for (let property of expression.properties) {
     if (types.isSpreadElement(property)) {
-      identifiers.push(...getIdentifiersSpreadElementUses(property));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersSpreadElementUses(property)
+      );
     } else if (types.isObjectProperty(property)) {
-      identifiers.push(...getIdentifiersObjectPropertyUses(property));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersObjectPropertyUses(property)
+      );
     } else if (types.isObjectMethod(property)) {
-      identifiers.push(...getIdentifiersObjectMethodUses(property));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersObjectMethodUses(property)
+      );
     } else {
       throw new Error("Invalid object expression property " + property);
     }

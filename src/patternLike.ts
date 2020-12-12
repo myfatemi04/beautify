@@ -1,15 +1,17 @@
 import * as types from "@babel/types";
 import { getIdentifiersLValUses } from "./lval";
 import { getIdentifiersPatternUses } from "./pattern";
-import { IdentifierAccess } from "./IdentifierAccess";
+import { createIdentifierAccess, IdentifierAccess_ } from "./IdentifierAccess";
 
 export function getIdentifiersPatternLikeUses(
   patternLike: types.PatternLike
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   if (patternLike.type === "RestElement") {
     return getIdentifiersLValUses(patternLike.argument);
   } else if (patternLike.type === "Identifier") {
-    return [{ type: "set", id: patternLike }];
+    let identifiers = createIdentifierAccess();
+    identifiers.set.add(patternLike.name);
+    return identifiers;
   } else if (types.isPattern(patternLike)) {
     return getIdentifiersPatternUses(patternLike);
   } else {

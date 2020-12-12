@@ -1,6 +1,6 @@
 import * as types from "@babel/types";
 import { PathNode } from "./path";
-import { IdentifierAccess } from "./IdentifierAccess";
+import { IdentifierAccess_ } from "./IdentifierAccess";
 import { getIdentifiersMethodUses } from "./method";
 
 export function rewriteFunctionDeclaration(
@@ -19,6 +19,6 @@ export function rewriteFunctionDeclaration(
 
 export function getIdentifiersFunctionDeclarationUses(
   statement: types.FunctionDeclaration
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   return getIdentifiersMethodUses(statement);
 }

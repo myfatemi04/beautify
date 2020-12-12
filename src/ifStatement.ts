@@ -1,6 +1,5 @@
 import * as types from "@babel/types";
-import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
-import { rewriteExpressionStatement } from "./expressionStatement";
+import { getIdentifiersExpressionUses } from "./expression";
 import { rewriteSequenceExpressionStatementGetLastValue } from "./sequenceExpression";
 import {
   getIdentifiersStatementUses,
@@ -8,8 +7,7 @@ import {
   rewriteStatementWrapWithBlock,
 } from "./statement";
 import { PathNode } from "./path";
-import { IdentifierAccess } from "./IdentifierAccess";
-import { combine } from "./combine";
+import { concat, IdentifierAccess_ } from "./IdentifierAccess";
 
 /**
  * * Rewrites the test expression, splitting if necessary
@@ -55,14 +53,17 @@ export function rewriteIfStatement(
 
 export function getIdentifiersIfStatementUses(
   statement: types.IfStatement
-): IdentifierAccess[] {
-  let identifiers = combine(
+): IdentifierAccess_ {
+  let identifiers = concat(
     getIdentifiersExpressionUses(statement.test),
     getIdentifiersStatementUses(statement.consequent)
   );
 
   if (statement.alternate) {
-    identifiers.push(...getIdentifiersStatementUses(statement.alternate));
+    identifiers = concat(
+      identifiers,
+      getIdentifiersStatementUses(statement.alternate)
+    );
   }
 
   return identifiers;

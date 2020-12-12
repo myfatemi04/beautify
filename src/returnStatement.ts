@@ -3,7 +3,7 @@ import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
 import { rewriteIfStatement } from "./ifStatement";
 import { rewriteSequenceExpressionStatementGetLastValue } from "./sequenceExpression";
 import { PathNode } from "./path";
-import { IdentifierAccess } from "./IdentifierAccess";
+import { createIdentifierAccess, IdentifierAccess_ } from "./IdentifierAccess";
 
 /**
  * Rewrites the argument of a return statement.
@@ -48,10 +48,10 @@ export function rewriteReturnStatement(
 
 export function getIdentifiersReturnStatementUses(
   statement: types.ReturnStatement
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   if (statement.argument) {
     return getIdentifiersExpressionUses(statement.argument);
   } else {
-    return [];
+    return createIdentifierAccess();
   }
 }

@@ -1,6 +1,10 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { getIdentifiersLValUses } from "./lval";
 import { PathNode } from "./path";
 
@@ -33,10 +37,13 @@ export function rewriteAssignmentExpression(
 
 export function getIdentifiersAssignmentExpressionUses(
   expression: types.AssignmentExpression
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   // Get all identifiers of the left hand side.
-  let identifiers: IdentifierAccess[] = [];
-  identifiers.push(...getIdentifiersLValUses(expression.left));
-  identifiers.push(...getIdentifiersExpressionUses(expression.right));
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
+  identifiers = concat(identifiers, getIdentifiersLValUses(expression.left));
+  identifiers = concat(
+    identifiers,
+    getIdentifiersExpressionUses(expression.right)
+  );
   return identifiers;
 }

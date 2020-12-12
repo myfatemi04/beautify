@@ -11,7 +11,11 @@ import {
   rewriteVariableDeclaration,
 } from "./variableDeclaration";
 import { PathNode } from "./path";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { getIdentifiersLValUses } from "./lval";
 
 /**
@@ -83,28 +87,41 @@ export function rewriteForOfInStatement(
 
 export function getIdentifiersForStatementUses(
   statement: types.ForStatement
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   {
-    let identifiers = [];
+    let identifiers: IdentifierAccess_ = createIdentifierAccess();
     if (statement.init) {
       if (types.isExpression(statement.init)) {
-        identifiers.push(...getIdentifiersExpressionUses(statement.init));
+        identifiers = concat(
+          identifiers,
+          getIdentifiersExpressionUses(statement.init)
+        );
       } else {
-        identifiers.push(
-          ...getIdentifiersVariableDeclarationUses(statement.init)
+        identifiers = concat(
+          identifiers,
+          getIdentifiersVariableDeclarationUses(statement.init)
         );
       }
     }
 
     if (statement.test) {
-      identifiers.push(...getIdentifiersExpressionUses(statement.test));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersExpressionUses(statement.test)
+      );
     }
 
     if (statement.update) {
-      identifiers.push(...getIdentifiersExpressionUses(statement.update));
+      identifiers = concat(
+        identifiers,
+        getIdentifiersExpressionUses(statement.update)
+      );
     }
 
-    identifiers.push(...getIdentifiersStatementUses(statement.body));
+    identifiers = concat(
+      identifiers,
+      getIdentifiersStatementUses(statement.body)
+    );
 
     return identifiers;
   }
@@ -112,17 +129,26 @@ export function getIdentifiersForStatementUses(
 
 export function getIdentifiersForOfInStatementUses(
   statement: types.ForInStatement | types.ForOfStatement
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers = createIdentifierAccess();
 
   if (types.isLVal(statement.left)) {
-    identifiers.push(...getIdentifiersLValUses(statement.left));
+    identifiers = concat(identifiers, getIdentifiersLValUses(statement.left));
   } else {
-    identifiers.push(...getIdentifiersVariableDeclarationUses(statement.left));
+    identifiers = concat(
+      identifiers,
+      getIdentifiersVariableDeclarationUses(statement.left)
+    );
   }
 
-  identifiers.push(...getIdentifiersExpressionUses(statement.right));
-  identifiers.push(...getIdentifiersStatementUses(statement.body));
+  identifiers = concat(
+    identifiers,
+    getIdentifiersExpressionUses(statement.right)
+  );
+  identifiers = concat(
+    identifiers,
+    getIdentifiersStatementUses(statement.body)
+  );
 
   return identifiers;
 }

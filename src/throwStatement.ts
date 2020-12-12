@@ -1,6 +1,6 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses, rewriteExpression } from "./expression";
-import { IdentifierAccess } from "./IdentifierAccess";
+import { IdentifierAccess_ } from "./IdentifierAccess";
 import { PathNode } from "./path";
 
 /**
@@ -19,6 +19,6 @@ export function rewriteThrowStatement(
 
 export function getIdentifiersThrowStatementUses(
   statement: types.ThrowStatement
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   return getIdentifiersExpressionUses(statement.argument);
 }

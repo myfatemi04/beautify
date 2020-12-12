@@ -1,12 +1,12 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses } from "./expression";
-import { IdentifierAccess } from "./IdentifierAccess";
+import { createIdentifierAccess, IdentifierAccess_ } from "./IdentifierAccess";
 
 export function getIdentifiersCalleeUses(
   expr: types.Expression | types.V8IntrinsicIdentifier
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   if (types.isV8IntrinsicIdentifier(expr)) {
-    return [];
+    return createIdentifierAccess();
   } else {
     return getIdentifiersExpressionUses(expr);
   }

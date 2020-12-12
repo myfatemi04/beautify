@@ -4,7 +4,11 @@ import {
   getIdentifiersCatchClauseUses,
   rewriteCatchClause,
 } from "./catchClause";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { PathNode } from "./path";
 import { getIdentifiersStatementUses } from "./statement";
 
@@ -33,17 +37,26 @@ export function rewriteTryStatement(
 
 export function getIdentifiersTryStatementUses(
   statement: types.TryStatement
-): IdentifierAccess[] {
-  let identifiers = [];
+): IdentifierAccess_ {
+  let identifiers = createIdentifierAccess();
 
-  identifiers.push(...getIdentifiersStatementUses(statement.block));
+  identifiers = concat(
+    identifiers,
+    getIdentifiersStatementUses(statement.block)
+  );
 
   if (statement.handler) {
-    identifiers.push(...getIdentifiersCatchClauseUses(statement.handler));
+    identifiers = concat(
+      identifiers,
+      getIdentifiersCatchClauseUses(statement.handler)
+    );
   }
 
   if (statement.finalizer) {
-    identifiers.push(...getIdentifiersStatementUses(statement.finalizer));
+    identifiers = concat(
+      identifiers,
+      getIdentifiersStatementUses(statement.finalizer)
+    );
   }
 
   return identifiers;

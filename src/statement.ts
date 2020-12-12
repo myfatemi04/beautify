@@ -1,13 +1,12 @@
 import * as types from "@babel/types";
-import { combine } from "./combine";
-import { getIdentifiersClassMethodUses } from "./classMethod";
-import { getIdentifiersCatchClauseUses } from "./catchClause";
+
 import { getIdentifiersExpressionUses } from "./expression";
-import { getIdentifiersFunctionParamsUse } from "./functionParams";
-import { getIdentifiersLValUses } from "./lval";
-import { getIdentifiersSwitchCaseUses } from "./switchCase";
 import { getIdentifiersVariableDeclarationUses } from "./variableDeclaration";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { rewriteBlockStatement } from "./blockStatement";
 import { rewriteExpressionStatement } from "./expressionStatement";
 import {
@@ -56,17 +55,17 @@ import { removeDefinedIdentifiers } from "./removeDefinedIdentifiers";
 
 export function getIdentifiersStatementsUse(
   statements: types.Statement[]
-): IdentifierAccess[] {
-  return [].concat(
+): IdentifierAccess_ {
+  return concat(
     ...statements.map((statement) => {
-      return getIdentifiersStatementUses(statement) || [];
+      return getIdentifiersStatementUses(statement);
     })
   );
 }
 
 export function getIdentifiersStatementUses(
   statement: types.Statement | types.CatchClause
-): IdentifierAccess[] {
+): IdentifierAccess_ {
   switch (statement.type) {
     case "ForInStatement":
     case "ForOfStatement":
@@ -117,12 +116,12 @@ export function getIdentifiersStatementUses(
     case "BreakStatement":
     case "ContinueStatement":
     case "EmptyStatement":
-      return [];
+      return createIdentifierAccess();
   }
 
   console.warn("getIdentifiersStatementUses() needs case", statement);
 
-  return [];
+  return createIdentifierAccess();
 }
 
 export function rewriteStatement(

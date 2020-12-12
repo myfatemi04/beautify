@@ -1,7 +1,11 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses } from "./expression";
 import { getIdentifiersFunctionParamsUse } from "./functionParams";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { removeDefinedIdentifiers } from "./removeDefinedIdentifiers";
 import { getIdentifiersStatementUses } from "./statement";
 
@@ -13,14 +17,20 @@ export type Method =
   | types.FunctionExpression
   | types.ObjectMethod;
 
-export function getIdentifiersMethodUses(method: Method): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
-  identifiers.push(...getIdentifiersFunctionParamsUse(method.params));
+export function getIdentifiersMethodUses(method: Method): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
+  identifiers = concat(
+    identifiers,
+    getIdentifiersFunctionParamsUse(method.params)
+  );
 
   if (types.isBlockStatement(method.body)) {
-    identifiers.push(...getIdentifiersStatementUses(method.body));
+    identifiers = concat(identifiers, getIdentifiersStatementUses(method.body));
   } else {
-    identifiers.push(...getIdentifiersExpressionUses(method.body));
+    identifiers = concat(
+      identifiers,
+      getIdentifiersExpressionUses(method.body)
+    );
   }
 
   // now, any identifiers that say "define", we must remove subsequent references

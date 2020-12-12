@@ -1,6 +1,10 @@
 import * as types from "@babel/types";
 import { getIdentifiersExpressionUses } from "./expression";
-import { IdentifierAccess } from "./IdentifierAccess";
+import {
+  concat,
+  createIdentifierAccess,
+  IdentifierAccess_,
+} from "./IdentifierAccess";
 import { getIdentifiersSpreadElementUses } from "./spreadElement";
 
 export type Argument =
@@ -11,13 +15,13 @@ export type Argument =
 
 export function getIdentifiersArgumentsUse(
   args: Argument[]
-): IdentifierAccess[] {
-  let identifiers: IdentifierAccess[] = [];
+): IdentifierAccess_ {
+  let identifiers: IdentifierAccess_ = createIdentifierAccess();
   for (let arg of args) {
     if (types.isExpression(arg)) {
-      identifiers.push(...getIdentifiersExpressionUses(arg));
+      identifiers = concat(identifiers, getIdentifiersExpressionUses(arg));
     } else if (types.isSpreadElement(arg)) {
-      identifiers.push(...getIdentifiersSpreadElementUses(arg));
+      identifiers = concat(identifiers, getIdentifiersSpreadElementUses(arg));
     } else if (types.isArgumentPlaceholder(arg)) {
       // do nothing
     } else {
