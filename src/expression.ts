@@ -47,6 +47,10 @@ export function getIdentifiersExpressionUses(
   expression: types.Expression
 ): IdentifierAccess_ {
   let identifiers = createIdentifierAccess();
+  if (expression == null) {
+    return identifiers;
+  }
+
   switch (expression.type) {
     case "UnaryExpression":
       return getIdentifiersExpressionUses(expression.argument);

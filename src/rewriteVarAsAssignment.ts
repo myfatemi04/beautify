@@ -46,7 +46,7 @@ export function variableDeclarationToSequenceAssignment(
           return null;
         }
       })
-      .filter((value) => !!value)
+      .filter((value) => value != null)
   );
 }
 

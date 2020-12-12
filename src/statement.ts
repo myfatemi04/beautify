@@ -7,7 +7,10 @@ import {
   createIdentifierAccess,
   IdentifierAccess_,
 } from "./IdentifierAccess";
-import { rewriteBlockStatement } from "./blockStatement";
+import {
+  getIdentifiersBlockStatementUses,
+  rewriteBlockStatement,
+} from "./blockStatement";
 import { rewriteExpressionStatement } from "./expressionStatement";
 import {
   rewriteForStatement,
@@ -51,7 +54,6 @@ import {
   getIdentifiersThrowStatementUses,
   rewriteThrowStatement,
 } from "./throwStatement";
-import { removeDefinedIdentifiers } from "./removeDefinedIdentifiers";
 
 export function getIdentifiersStatementsUse(
   statements: types.Statement[]
@@ -84,9 +86,7 @@ export function getIdentifiersStatementUses(
       return getIdentifiersStatementUses(statement.body);
 
     case "BlockStatement":
-      return removeDefinedIdentifiers(
-        getIdentifiersStatementsUse(statement.body)
-      );
+      return getIdentifiersBlockStatementUses(statement);
 
     case "IfStatement":
       return getIdentifiersIfStatementUses(statement);

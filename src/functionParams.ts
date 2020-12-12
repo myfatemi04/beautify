@@ -8,7 +8,6 @@ import {
   concat,
   createIdentifierAccess,
   IdentifierAccess_,
-  mergeIdentifiersOr,
 } from "./IdentifierAccess";
 import { FunctionParam } from "./params";
 
@@ -23,7 +22,7 @@ export function getIdentifiersFunctionParamsUse(
       identifiers = concat(identifiers, getIdentifiersPatternUses(param));
     } else if (types.isIdentifier(param)) {
       // Identifier: this identifier is "set" (instantiated from the function)
-      identifiers.define.add(param.name);
+      identifiers.set.add(param.name);
     } else if (types.isRestElement(param)) {
       // Rest element: whatever content in the Rest Element is "set"
       identifiers = concat(identifiers, getIdentifiersRestElementUses(param));
@@ -32,7 +31,7 @@ export function getIdentifiersFunctionParamsUse(
       // The param can be an identifier or assignment pattern and is treated
       // like it were a regular function parameter.
       if (types.isIdentifier(param.parameter)) {
-        identifiers.define.add(param.parameter.name);
+        identifiers.set.add(param.parameter.name);
       } else if (types.isAssignmentPattern(param)) {
         identifiers = concat(
           identifiers,
@@ -46,7 +45,5 @@ export function getIdentifiersFunctionParamsUse(
     }
   }
 
-  identifiers.define = mergeIdentifiersOr(identifiers.define, identifiers.set);
-  identifiers.set = new Set<string>();
   return identifiers;
 }

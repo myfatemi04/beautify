@@ -39,9 +39,9 @@ export function getIdentifiersClassPropertyUses(
   let identifiers: IdentifierAccess_ = createIdentifierAccess();
 
   if (types.isIdentifier(property.key)) {
-    identifiers.define.add(property.key.name);
+    identifiers.set.add(property.key.name);
   } else if (types.isPrivateName(property.key)) {
-    identifiers.define.add(property.key.id.name);
+    identifiers.set.add(property.key.id.name);
   } else {
     identifiers = concat(
       identifiers,

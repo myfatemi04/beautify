@@ -1,15 +1,15 @@
-import * as types from "@babel/types";
-
 export type Identifiers = Set<string>;
 
 export type IdentifierAccess_ = {
   get: Identifiers;
   set: Identifiers;
-  define: Identifiers;
 };
 
 export function mergeIdentifiersOr(...list: Identifiers[]): Identifiers {
   let new_ = new Set<string>();
+  if (list.length === 0) {
+    return new_;
+  }
 
   // Add from each list
   for (let identifiers of list) {
@@ -52,14 +52,33 @@ export function concat(...list: IdentifierAccess_[]): IdentifierAccess_ {
   return {
     get: mergeIdentifiersOr(...list.map((id) => id.get)),
     set: mergeIdentifiersOr(...list.map((id) => id.set)),
-    define: mergeIdentifiersOr(...list.map((id) => id.define)),
+    // define: mergeIdentifiersOr(...list.map((id) => id.define)),
   };
 }
 
 export function mergeSequentialIdentifiers(
   ...list: IdentifierAccess_[]
 ): IdentifierAccess_ {
-  return concat(...list);
+  let new_ = createIdentifierAccess();
+  if (list.length === 0) {
+    return new_;
+  }
+
+  for (let access of list) {
+    access.get.forEach((id) => {
+      if (!new_.set.has(id)) {
+        new_.get.add(id);
+      }
+    });
+
+    access.set.forEach((id) => {
+      if (!new_.get.has(id)) {
+        new_.set.add(id);
+      }
+    });
+  }
+
+  return new_;
 }
 
 export function identifiers(): Identifiers {
@@ -68,8 +87,8 @@ export function identifiers(): Identifiers {
 
 export function createIdentifierAccess(): IdentifierAccess_ {
   return {
-    define: identifiers(),
     get: identifiers(),
     set: identifiers(),
+    // define: identifiers(),
   };
 }

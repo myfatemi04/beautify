@@ -19,13 +19,16 @@ export function getIdentifiersVariableDeclarationUses(
       identifiers = concat(identifiers, i);
     }
 
-    let idIdentifiers = getIdentifiersLValUses(declaration.id);
+    let lvalIdentifiers = getIdentifiersLValUses(declaration.id);
+    lvalIdentifiers.get.forEach((id) => {
+      identifiers.get.add(id);
+    });
 
-    // Anything that was "set" is now "define" instead, because it was defined in this block
-    idIdentifiers.define = idIdentifiers.set;
-    idIdentifiers.set = new Set<string>();
-
-    identifiers = concat(identifiers, idIdentifiers);
+    lvalIdentifiers.set.forEach((id) => {
+      if (!identifiers.get.has(id)) {
+        identifiers.set.add(id);
+      }
+    });
   }
   return identifiers;
 }
@@ -40,6 +43,39 @@ export function rewriteVariableDeclaration(
   path: PathNode
 ): types.Statement[] {
   let statements: types.Statement[] = [];
+  // If this is a 'var' declaration, check to see if the var has already been declared
+  // in this scope. if they have, change to an assignmentexpression
+  if (statement.kind === "var") {
+    for (let declarator of statement.declarations) {
+      if (!declarator.init) {
+        // don't convert this to an assignmentExpression
+        statements.push(types.variableDeclaration("var", [declarator]));
+        continue;
+      }
+
+      let assignedIdentifiers = getIdentifiersLValUses(declarator.id).set;
+      let allAreDeclared = true;
+      for (let identifier of Array.from(assignedIdentifiers)) {
+        if (!path.hasVariableBeenDeclared(identifier)) {
+          allAreDeclared = false;
+        }
+      }
+
+      if (allAreDeclared) {
+        statements.push(
+          types.expressionStatement(
+            types.assignmentExpression("=", declarator.id, declarator.init)
+          )
+        );
+      } else {
+        statements.push(types.variableDeclaration("var", [declarator]));
+      }
+    }
+
+    return statements;
+  }
+
+  // Otherwise, just add regular 'var' declarations
   for (let declarator of statement.declarations) {
     let init = declarator.init;
 

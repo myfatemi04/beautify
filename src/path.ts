@@ -10,7 +10,8 @@ export class PathNode {
   parent: PathNode | null;
   scoped: boolean;
   index: number = 0;
-  blockDeclaredVariables: { [name: string]: boolean } = {};
+  variablesWithoutDeclaration: { [name: string]: boolean } = {};
+  variablesWithDeclaration: { [name: string]: boolean } = {};
   suggestedVariableNames: { [name: string]: string } = {};
 
   constructor(body: types.Statement[], scoped: boolean, parent?: PathNode) {
@@ -28,13 +29,13 @@ export class PathNode {
 
   hasVariableBeenDeclared(name: string) {
     return (
-      this.blockDeclaredVariables[name] ||
+      this.variablesWithDeclaration[name] ||
       (this.parent && this.parent.hasVariableBeenDeclared(name))
     );
   }
 
   hasVariableBeenDeclaredThisBlock(name: string) {
-    return this.blockDeclaredVariables[name];
+    return this.variablesWithDeclaration[name];
   }
 
   getNodeThatDeclaresVariable(name: string): PathNode | null {
@@ -87,7 +88,7 @@ export class PathNode {
 
     // if this variable was declared this block, it's impossible for it to have
     // been accessed outside
-    if (this.blockDeclaredVariables[name]) {
+    if (this.variablesWithDeclaration[name]) {
       return false;
     }
 
@@ -131,7 +132,8 @@ export class PathNode {
     this.index = 0;
 
     this.moveDeclarationsInward();
-    this.removeUnusedIdentifiers();
+    // this.removeUnusedIdentifiers();
+    this.insertVariableDeclarations();
   }
 
   moveDeclarationsInward() {
@@ -144,6 +146,7 @@ export class PathNode {
       // its current value is ever referenced outside of this path.
 
       switch (statement.type) {
+        // Check if it's an assignment (a = b)
         case "ExpressionStatement": {
           let expression = statement.expression;
           if (types.isAssignmentExpression(expression, { operator: "=" })) {
@@ -154,10 +157,8 @@ export class PathNode {
                 !this.isVariableUsedOutsideThisBlock(name) &&
                 !this.hasVariableBeenDeclaredThisBlock(name)
               ) {
-                // If this variable isn't used eventually,
-                // and it hasn't been declared yet, then
-                // we can turn this assignment into a "let"
-                // statement.
+                // If this variable isn't used outside this block,
+                // and it hasn't been declared yet, then it becomes "let"
                 body.push(
                   types.variableDeclaration(
                     this.isVariableUpdatedLater(name) ? "let" : "const",
@@ -249,7 +250,7 @@ export class PathNode {
   }
 
   undeclareThisBlock(name: string) {
-    delete this.blockDeclaredVariables[name];
+    delete this.variablesWithDeclaration[name];
   }
 
   removeUnusedIdentifiers() {
@@ -268,7 +269,7 @@ export class PathNode {
                 if (expressionHasSideEffects(declaration.init)) {
                   body.push(types.expressionStatement(declaration.init));
                 }
-                console.log("Found unused:", generate(statement).code);
+                // console.log("Found unused:", generate(statement).code);
                 foundUnused = true;
                 break checkBlock;
               }
@@ -308,7 +309,7 @@ export class PathNode {
   }
 
   declareInBlock(name: string) {
-    this.blockDeclaredVariables[name] = true;
+    this.variablesWithDeclaration[name] = true;
   }
 
   declareInScope(name: string) {
@@ -320,6 +321,66 @@ export class PathNode {
       } else {
         throw new Error("Could not declare identifier in scope: " + name);
       }
+    }
+  }
+
+  /**
+   * For each variable that is declared this block,
+   * insert a "let ___" just before the statement that uses it first.
+   */
+  insertVariableDeclarations() {
+    for (let identifier of Object.keys(this.variablesWithDeclaration)) {
+      let body: types.Statement[] = [];
+      let i = 0;
+      for (let statement of this.body) {
+        let identifiersUsed = getIdentifiersStatementUses(statement);
+        if (
+          types.isExpressionStatement(statement) &&
+          types.isAssignmentExpression(statement.expression, {
+            operator: "=",
+          }) &&
+          types.isIdentifier(statement.expression.left, { name: identifier })
+        ) {
+          // if it's an assignment, and it explicitly sets this identifier,
+          // then we just write it as a variable declaration directly
+          /*
+          body.push(
+            types.variableDeclaration("let", [
+              types.variableDeclarator(
+                statement.expression.left,
+                statement.expression.right
+              ),
+            ])
+          );
+          body.push(...this.body.slice(i + 1));
+          break;
+          */
+        }
+
+        // if the variable is set or read here, we define it just before.
+        // then, we push the rest of the body and break the loop.
+        if (
+          identifiersUsed.get.has(identifier) ||
+          identifiersUsed.set.has(identifier)
+        ) {
+          if (!types.isVariableDeclaration(statement)) {
+            // if it wasn't the variable declaration, then add a variable declaration
+            body.push(
+              types.variableDeclaration("let", [
+                types.variableDeclarator(types.identifier(identifier)),
+              ])
+            );
+          }
+          body.push(statement);
+          body.push(...this.body.slice(i + 1));
+          break;
+        } else {
+          body.push(statement);
+        }
+
+        i++;
+      }
+      this.body = body;
     }
   }
 

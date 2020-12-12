@@ -2,7 +2,8 @@
 	"compilerOptions": {
 		"lib": ["ESNext"],
 		"outDir": "dist/",
-		"noImplicitReturns": true
+		"noImplicitReturns": true,
+		"removeComments": true
 	},
 	"exclude": ["node_modules/"],
 	"include": ["src/"]
