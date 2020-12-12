@@ -2,6 +2,7 @@ import * as types from "@babel/types";
 import { IdentifierAccess_ } from "./IdentifierAccess";
 import { PathNode } from "./path";
 import { getIdentifiersMethodUses } from "./method";
+import { getIdentifiersFunctionParamsUse } from "./functionParams";
 
 export function getIdentifiersClassMethodUses(
   method: types.ClassMethod | types.ClassPrivateMethod
@@ -13,7 +14,8 @@ export function rewriteClassMethod(
   method: types.ClassMethod | types.ClassPrivateMethod,
   path: PathNode
 ): types.ClassMethod | types.ClassPrivateMethod {
-  let rewriter = new PathNode(method.body.body, true, path);
+  let definedVars = getIdentifiersFunctionParamsUse(method.params);
+  let rewriter = new PathNode(method.body.body, true, path, definedVars.set);
   rewriter.rewrite();
 
   return {

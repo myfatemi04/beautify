@@ -2,12 +2,19 @@ import * as types from "@babel/types";
 import { PathNode } from "./path";
 import { IdentifierAccess_ } from "./IdentifierAccess";
 import { getIdentifiersMethodUses } from "./method";
+import { getIdentifiersFunctionParamsUse } from "./functionParams";
 
 export function rewriteFunctionDeclaration(
   declaration: types.FunctionDeclaration,
   path: PathNode
 ): types.FunctionDeclaration {
-  let rewriter = new PathNode(declaration.body.body, true, path);
+  let definedVars = getIdentifiersFunctionParamsUse(declaration.params);
+  let rewriter = new PathNode(
+    declaration.body.body,
+    true,
+    path,
+    definedVars.set
+  );
   rewriter.rewrite();
 
   return types.functionDeclaration(

@@ -187,43 +187,26 @@ export function rewriteExpression(
       return rewriteLogicalExpression(expression, path);
     case "ParenthesizedExpression":
       return rewriteExpression(expression.expression, path);
+    case "ClassExpression":
+      return rewriteClassExpression(expression, path);
+    case "ArrowFunctionExpression":
+      return rewriteArrowFunctionExpression(expression, path);
+    case "FunctionExpression":
+      return rewriteFunctionExpression(expression, path);
+    case "YieldExpression":
+      return types.yieldExpression(rewriteExpression(expression.argument, path));
+    case "AwaitExpression":
+      return types.awaitExpression(rewriteExpression(expression.argument, path));
+
+    case "UpdateExpression":
+    case "Identifier":
+    case "ThisExpression":
     case "Super":
       return expression;
   }
 
   if (types.isLiteral(expression)) {
     return expression;
-  }
-
-  if (types.isClassExpression(expression)) {
-    return rewriteClassExpression(expression, path);
-  }
-
-  if (types.isArrowFunctionExpression(expression)) {
-    return rewriteArrowFunctionExpression(expression, path);
-  }
-
-  if (types.isFunctionExpression(expression)) {
-    return rewriteFunctionExpression(expression, path);
-  }
-
-  if (types.isUpdateExpression(expression)) {
-    return expression;
-  }
-
-  if (
-    expression.type === "Identifier" ||
-    expression.type === "ThisExpression"
-  ) {
-    return expression;
-  }
-
-  if (types.isYieldExpression(expression)) {
-    return types.yieldExpression(rewriteExpression(expression.argument, path));
-  }
-
-  if (types.isAwaitExpression(expression)) {
-    return types.awaitExpression(rewriteExpression(expression.argument, path));
   }
 
   console.log("rewriteExpression() needs", expression);

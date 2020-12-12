@@ -4,17 +4,23 @@ import expressionHasSideEffects from "./expressionHasSideEffects";
 import { getAllDeclaredIdentifiers } from "./getAllDeclaredIdentifiers";
 import { getIdentifiersLValUses } from "./lval";
 import { getIdentifiersStatementUses, rewriteStatement } from "./statement";
+import { rewriteExpression } from "./expression";
 
 export class PathNode {
   body: types.Statement[];
   parent: PathNode | null;
   scoped: boolean;
   index: number = 0;
-  variablesWithoutDeclaration: { [name: string]: boolean } = {};
-  variablesWithDeclaration: { [name: string]: boolean } = {};
+  variablesFromFunctionParameters = new Set<string>();
+  variablesFromDeclaration = new Set<string>();
   suggestedVariableNames: { [name: string]: string } = {};
 
-  constructor(body: types.Statement[], scoped: boolean, parent?: PathNode) {
+  constructor(
+    body: types.Statement[],
+    scoped: boolean,
+    parent?: PathNode,
+    variablesFromFunctionParameters?: Set<string>
+  ) {
     this.body = body;
     this.scoped = scoped;
 
@@ -24,18 +30,26 @@ export class PathNode {
       this.parent = null;
     }
 
+    if (variablesFromFunctionParameters) {
+      this.variablesFromFunctionParameters = variablesFromFunctionParameters;
+    }
+
     this.hoistAll();
   }
 
   hasVariableBeenDeclared(name: string) {
     return (
-      this.variablesWithDeclaration[name] ||
+      this.variablesFromDeclaration.has(name) ||
+      this.variablesFromFunctionParameters.has(name) ||
       (this.parent && this.parent.hasVariableBeenDeclared(name))
     );
   }
 
   hasVariableBeenDeclaredThisBlock(name: string) {
-    return this.variablesWithDeclaration[name];
+    return (
+      this.variablesFromDeclaration.has(name) ||
+      this.variablesFromFunctionParameters.has(name)
+    );
   }
 
   getNodeThatDeclaresVariable(name: string): PathNode | null {
@@ -88,7 +102,7 @@ export class PathNode {
 
     // if this variable was declared this block, it's impossible for it to have
     // been accessed outside
-    if (this.variablesWithDeclaration[name]) {
+    if (this.variablesFromDeclaration.has(name)) {
       return false;
     }
 
@@ -124,7 +138,29 @@ export class PathNode {
     let body: types.Statement[] = [];
     this.index = 0;
     for (let statement of this.body) {
-      body.push(...rewriteStatement(statement, this));
+      // check if it's a variable declaration
+      // if it's a variable declaration, either rewrite it
+      // as an assignment or remove it
+      if (types.isVariableDeclaration(statement)) {
+        for (let declarator of statement.declarations) {
+          if (declarator.init) {
+            body.push(
+              types.expressionStatement(
+                types.assignmentExpression(
+                  "=",
+                  declarator.id,
+                  rewriteExpression(declarator.init, this)
+                )
+              )
+            );
+          } else {
+            // no initializer, don't include this declaration yet
+            // it will be added later in this.insertVariableDeclarations()
+          }
+        }
+      } else {
+        body.push(...rewriteStatement(statement, this));
+      }
       this.index++;
     }
 
@@ -132,7 +168,7 @@ export class PathNode {
     this.index = 0;
 
     this.moveDeclarationsInward();
-    // this.removeUnusedIdentifiers();
+    this.removeUnusedIdentifiers();
     this.insertVariableDeclarations();
   }
 
@@ -250,7 +286,7 @@ export class PathNode {
   }
 
   undeclareThisBlock(name: string) {
-    delete this.variablesWithDeclaration[name];
+    this.variablesFromDeclaration.delete(name);
   }
 
   removeUnusedIdentifiers() {
@@ -309,7 +345,7 @@ export class PathNode {
   }
 
   declareInBlock(name: string) {
-    this.variablesWithDeclaration[name] = true;
+    this.variablesFromDeclaration.add(name);
   }
 
   declareInScope(name: string) {
@@ -329,7 +365,7 @@ export class PathNode {
    * insert a "let ___" just before the statement that uses it first.
    */
   insertVariableDeclarations() {
-    for (let identifier of Object.keys(this.variablesWithDeclaration)) {
+    for (let identifier of Array.from(this.variablesFromDeclaration)) {
       let body: types.Statement[] = [];
       let i = 0;
       for (let statement of this.body) {
@@ -343,7 +379,7 @@ export class PathNode {
         ) {
           // if it's an assignment, and it explicitly sets this identifier,
           // then we just write it as a variable declaration directly
-          /*
+
           body.push(
             types.variableDeclaration("let", [
               types.variableDeclarator(
@@ -354,7 +390,6 @@ export class PathNode {
           );
           body.push(...this.body.slice(i + 1));
           break;
-          */
         }
 
         // if the variable is set or read here, we define it just before.

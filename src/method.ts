@@ -2,11 +2,9 @@ import * as types from "@babel/types";
 import { getIdentifiersExpressionUses } from "./expression";
 import { getIdentifiersFunctionParamsUse } from "./functionParams";
 import {
-  concat,
   createIdentifierAccess,
   IdentifierAccess_,
   mergeIdentifiersOr,
-  mergeSequentialIdentifiers,
 } from "./IdentifierAccess";
 import { getIdentifiersStatementUses } from "./statement";
 

@@ -1,4 +1,5 @@
 import * as types from "@babel/types";
+import { getIdentifiersFunctionParamsUse } from "./functionParams";
 import { PathNode } from "./path";
 
 /**
@@ -11,7 +12,14 @@ export function rewriteFunctionExpression(
   expression: types.FunctionExpression,
   path: PathNode
 ): types.ArrowFunctionExpression {
-  let rewriter = new PathNode(expression.body.body, true, path);
+  let definedVars = getIdentifiersFunctionParamsUse(expression.params);
+
+  let rewriter = new PathNode(
+    expression.body.body,
+    true,
+    path,
+    definedVars.set
+  );
   rewriter.rewrite();
 
   // Rewrite as arrow expression

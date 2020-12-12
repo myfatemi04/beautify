@@ -2,6 +2,7 @@ import * as types from "@babel/types";
 import { rewriteExpression } from "./expression";
 import { PathNode } from "./path";
 import { rewriteBlockStatement } from "./blockStatement";
+import { getIdentifiersFunctionParamsUse } from "./functionParams";
 
 /**
  * Rewrites the body of an arrow function
@@ -20,9 +21,18 @@ export function rewriteArrowFunctionExpression(
       rewriteExpression(expression.body, path)
     );
   } else {
+    let definedVars = getIdentifiersFunctionParamsUse(expression.params);
+    let rewriter = new PathNode(
+      expression.body.body,
+      true,
+      path,
+      definedVars.set
+    );
+    rewriter.rewrite();
+
     return types.arrowFunctionExpression(
       expression.params,
-      rewriteBlockStatement(expression.body, path)
+      types.blockStatement(rewriter.body)
     );
   }
 }
